@@ -870,6 +870,24 @@ input[type='text'],
   margin-left: 4px;
 }
 
+.board-toggle {
+  width: 100%;
+  max-width: 280px;
+}
+
+.board-name {
+  font-weight: 700;
+}
+
+.board-btn {
+  align-self: center;
+}
+
+.modal .hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 /* ---------- toasts ---------- */
 
 .toast {

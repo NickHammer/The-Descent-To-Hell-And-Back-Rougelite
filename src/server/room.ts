@@ -1,4 +1,5 @@
 import type { WebSocket } from 'ws';
+import { recordGame } from './db.js';
 import { chooseBid, chooseCard } from '../shared/ai.js';
 import {
   collectTrick,
@@ -34,6 +35,7 @@ export class Room {
   state: GameState | null = null;
   /** bumped whenever the game state changes, to invalidate stale timers */
   private generation = 0;
+  private resultRecorded = false;
   lastActivity = Date.now();
 
   constructor(code: string, config: GameConfig, hostToken: string) {
@@ -146,6 +148,16 @@ export class Room {
     this.broadcast();
     const state = this.state;
     if (!state) return;
+
+    // Leaderboard: record finished games once, human-only games count.
+    if (state.phase === 'gameEnd' && !this.resultRecorded) {
+      this.resultRecorded = true;
+      if (state.players.every((p) => !p.isBot)) {
+        recordGame(this.code, state).catch((err) =>
+          console.error('Failed to record game result:', err)
+        );
+      }
+    }
 
     if (state.trickWinner !== null) {
       setTimeout(() => {

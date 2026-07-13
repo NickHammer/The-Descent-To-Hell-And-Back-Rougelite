@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Leaderboard } from './Leaderboard.js';
 
 export function Home({
   initialName,
@@ -17,6 +18,7 @@ export function Home({
   const [hookRule, setHookRule] = useState(true);
   const [takeSeat, setTakeSeat] = useState(true);
   const [code, setCode] = useState(joinCode ?? '');
+  const [showBoard, setShowBoard] = useState(false);
 
   const trimmed = name.trim();
 
@@ -99,8 +101,14 @@ export function Home({
               </button>
             </div>
           </div>
+
+          <button className="btn board-btn" onClick={() => setShowBoard(true)}>
+            🏆 Leaderboard
+          </button>
         </>
       )}
+
+      {showBoard && <Leaderboard onClose={() => setShowBoard(false)} />}
     </div>
   );
 }

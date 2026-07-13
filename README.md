@@ -61,6 +61,18 @@ npm run sim  # 600 headless bot games, asserts no rule violations
 npm run e2e  # full game over WebSocket (server must be running; set TRICK_PAUSE_MS=30 BOT_THINK_MS=20 for speed)
 ```
 
+## Leaderboard
+
+A global leaderboard (last 30 days / all time) ranks players by wins, then total points,
+and also shows bid accuracy, career points, and best single game.
+
+- Only **completed, human-only** games are recorded — any bot at the table means unranked.
+- Players are identified by name (case-insensitive), so the 30-day default keeps things fresh.
+- Requires a Postgres database. Create a free one at [neon.tech](https://neon.tech), then set
+  the `DATABASE_URL` environment variable (on Render: Environment → add `DATABASE_URL` with
+  the Neon connection string). The table is created automatically on first boot.
+- Without `DATABASE_URL` the game works normally; the leaderboard just reports it's disabled.
+
 ## Roadmap
 
 - **Online play over the internet:** the architecture is already client/server, so this is

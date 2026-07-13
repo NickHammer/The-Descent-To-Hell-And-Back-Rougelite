@@ -6,6 +6,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
+import { dbEnabled, getLeaderboard, initDb } from './db.js';
 import { Room } from './room.js';
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -27,6 +28,17 @@ app.get('/api/netinfo', (_req, res) => {
     }
   }
   res.json({ addresses });
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+  if (!dbEnabled) return res.json({ enabled: false, rows: [] });
+  const windowDays = req.query.window === 'all' ? null : 30;
+  try {
+    res.json({ enabled: true, windowDays, rows: await getLeaderboard(windowDays) });
+  } catch (err) {
+    console.error('Leaderboard query failed:', err);
+    res.status(500).json({ enabled: true, error: 'Leaderboard unavailable', rows: [] });
+  }
 });
 
 if (existsSync(distDir)) {
@@ -169,5 +181,10 @@ server.listen(PORT, () => {
   console.log(`To Hell and Back server listening on http://localhost:${PORT}`);
   if (!existsSync(distDir)) {
     console.log('(dev mode: run the Vite client on :5173, or `npm run build` to serve it here)');
+  }
+  if (dbEnabled) {
+    initDb().catch((err) => console.error('Leaderboard database init failed:', err));
+  } else {
+    console.log('(no DATABASE_URL set: leaderboard disabled)');
   }
 });
