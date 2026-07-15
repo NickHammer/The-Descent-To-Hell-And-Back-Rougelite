@@ -2,7 +2,7 @@ import {
   Card,
   GameConfig,
   GameState,
-  HAND_SIZES,
+  handSizes,
   PlayerInfo,
   Suit,
   TrickCard
@@ -66,9 +66,10 @@ export function startNextHand(state: GameState, rng: Rng = Math.random): void {
     throw new Error(`Cannot start a hand during ${state.phase}`);
   }
   const n = state.config.seatCount;
+  const sizes = handSizes(state.config.maxHandSize);
   state.handIndex += 1;
-  if (state.handIndex >= HAND_SIZES.length) throw new Error('No hands remain');
-  state.handSize = HAND_SIZES[state.handIndex];
+  if (state.handIndex >= sizes.length) throw new Error('No hands remain');
+  state.handSize = sizes[state.handIndex];
   state.dealer = (state.dealer + 1) % n;
 
   const deck = shuffle(buildDeck(), rng);
@@ -83,14 +84,15 @@ export function startNextHand(state: GameState, rng: Rng = Math.random): void {
   state.trick = [];
   state.trickWinner = null;
   state.lastTrick = null;
-  state.trickLeader = (state.dealer + 1) % n;
+  // House rule: the player left of the first bidder leads the first trick.
+  state.trickLeader = (state.dealer + 2) % n;
   state.turn = (state.dealer + 1) % n; // player left of dealer bids first, dealer last
   state.phase = 'bidding';
 }
 
-/** Hands after the 10-card peak (the 9..1 descent) — the hook rule only bites here. */
-export function isBackHalf(handIndex: number): boolean {
-  return handIndex >= 10;
+/** Hands after the peak (the descent back to 1) — the hook rule only bites here. */
+export function isBackHalf(handIndex: number, maxHandSize: number): boolean {
+  return handIndex >= maxHandSize;
 }
 
 export function legalBids(state: GameState, seat: number): number[] {
@@ -98,8 +100,8 @@ export function legalBids(state: GameState, seat: number): number[] {
   const all: number[] = [];
   for (let b = 0; b <= state.handSize; b++) all.push(b);
   // Hook rule: on the back half only, the dealer (last bidder) may not make
-  // total bids equal the tricks available. 1 up to 10 is unrestricted.
-  if (state.config.hookRule && seat === state.dealer && isBackHalf(state.handIndex)) {
+  // total bids equal the tricks available. The way up is unrestricted.
+  if (state.config.hookRule && seat === state.dealer && isBackHalf(state.handIndex, state.config.maxHandSize)) {
     const otherTotal = state.bids.reduce<number>((sum, b) => sum + (b ?? 0), 0);
     return all.filter((b) => otherTotal + b !== state.handSize);
   }
@@ -210,5 +212,5 @@ function scoreHand(state: GameState): void {
     totals: state.scores.slice()
   });
   state.turn = -1;
-  state.phase = state.handIndex === HAND_SIZES.length - 1 ? 'gameEnd' : 'handEnd';
+  state.phase = state.handIndex === handSizes(state.config.maxHandSize).length - 1 ? 'gameEnd' : 'handEnd';
 }

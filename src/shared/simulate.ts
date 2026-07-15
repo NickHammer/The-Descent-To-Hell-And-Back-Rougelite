@@ -12,7 +12,7 @@ function playFullGame(seatCount: number): GameState {
     isBot: true,
     connected: true
   }));
-  const state = newGame({ seatCount, hookRule: true }, players);
+  const state = newGame({ seatCount, maxHandSize: 10, hookRule: true }, players);
   while (state.phase !== 'gameEnd') {
     startNextHand(state);
     while (state.phase === 'bidding') {

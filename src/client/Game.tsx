@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { SUIT_GLYPHS, SUIT_NAMES } from '../shared/types.js';
 import { CardView, PlayerBadge } from './components.js';
+import { isMuted, play, setMuted } from './sounds.js';
 import { StateMsg } from './view.js';
 
-/** How long the winning card stays highlighted before the trick flies to the winner. */
-const SWEEP_DELAY_MS = 1150;
+/** How long the winning card stays highlighted before the trick flies to the winner.
+ *  Must finish (plus the 0.5s sweep animation) before the server's TRICK_PAUSE_MS collect. */
+const SWEEP_DELAY_MS = 3300;
 
 export function Game({
   state,
@@ -16,9 +18,15 @@ export function Game({
   onLeave: () => void;
 }) {
   const [showScores, setShowScores] = useState(false);
+  const [muted, setMutedState] = useState(isMuted());
   const stripRef = useRef<HTMLDivElement>(null);
   const trickRef = useRef<HTMLDivElement>(null);
   const [sweep, setSweep] = useState<{ x: number; y: number } | null>(null);
+
+  const toggleMute = () => {
+    setMuted(!muted);
+    setMutedState(!muted);
+  };
 
   // When a trick completes, pause on the winner highlight, then sweep the
   // cards toward the winner's badge (measured from the live layout).
@@ -51,6 +59,32 @@ export function Game({
   const bidding = state.phase === 'bidding';
   const turnName = state.turn != null && state.turn >= 0 ? players[state.turn].name : null;
 
+  // Sound effects: diff successive states to spot what just happened.
+  const sndPrev = useRef<{
+    handIndex: number;
+    trickLen: number;
+    trickWinner: number | null;
+    myTurn: boolean;
+    phase: string;
+  } | null>(null);
+  useEffect(() => {
+    const cur = {
+      handIndex: state.handIndex ?? -1,
+      trickLen: state.trick?.length ?? 0,
+      trickWinner,
+      myTurn,
+      phase: state.phase
+    };
+    const prev = sndPrev.current;
+    sndPrev.current = cur;
+    if (!prev) return;
+    if (cur.phase === 'gameEnd' && prev.phase !== 'gameEnd') play('win');
+    else if (cur.trickWinner !== null && prev.trickWinner === null) play('trick');
+    else if (cur.handIndex !== prev.handIndex) play('deal');
+    else if (cur.trickLen > prev.trickLen) play('card');
+    if (cur.myTurn && !prev.myTurn && cur.trickWinner === null) play('turn');
+  });
+
   return (
     <div className="game">
       <header className="topbar">
@@ -59,10 +93,17 @@ export function Game({
           {state.handSize === 1 ? '' : 's'}
         </div>
         <div className={`trump-info trump-${trump.suit}`}>
-          Trump: <CardView card={trump} size="sm" />
+          Trump: <CardView card={trump} size="md" />
           <span className="trump-name">{SUIT_NAMES[trump.suit]}</span>
         </div>
         <div className="topbar-right">
+          <button
+            className="btn btn-small"
+            onClick={toggleMute}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
           <button className="btn btn-small" onClick={() => setShowScores(true)}>
             Scores
           </button>
@@ -106,13 +147,16 @@ export function Game({
                 : undefined
             }
           >
-            {state.trick!.map((tc) => (
+            {state.trick!.map((tc, i) => (
               <div
                 key={tc.card.id}
                 className={`trick-card ${state.trickWinner === tc.seat ? 'trick-winner' : ''}`}
               >
-                <CardView card={tc.card} size="md" />
-                <div className="trick-name">{players[tc.seat].name}</div>
+                <CardView card={tc.card} size="lg" />
+                <div className="trick-name">
+                  {players[tc.seat].name}
+                  {i === 0 && <span className="led-chip">led</span>}
+                </div>
               </div>
             ))}
           </div>

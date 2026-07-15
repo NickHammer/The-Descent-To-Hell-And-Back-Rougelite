@@ -61,6 +61,7 @@ interface ClientMessage {
   name?: string;
   roomCode?: string;
   seatCount?: number;
+  maxHandSize?: number;
   hookRule?: boolean;
   takeSeat?: boolean;
   bid?: number;
@@ -116,8 +117,9 @@ wss.on('connection', (ws: AliveSocket) => {
         case 'create': {
           detach();
           const seatCount = Math.min(4, Math.max(2, msg.seatCount ?? 2));
+          const maxHandSize = Math.min(10, Math.max(3, msg.maxHandSize ?? 10));
           const code = newRoomCode();
-          room = new Room(code, { seatCount, hookRule: msg.hookRule ?? false }, token);
+          room = new Room(code, { seatCount, maxHandSize, hookRule: msg.hookRule ?? false }, token);
           rooms.set(code, room);
           conn = room.addConnection(ws, token);
           if (msg.takeSeat) room.takeSeat(conn, msg.name ?? 'Host');

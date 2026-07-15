@@ -53,9 +53,15 @@ export function App() {
 
   const socket = useSocket(onMessage, onOpen);
 
-  const create = (name: string, seatCount: number, hookRule: boolean, takeSeat: boolean) => {
+  const create = (
+    name: string,
+    seatCount: number,
+    maxHandSize: number,
+    hookRule: boolean,
+    takeSeat: boolean
+  ) => {
     localStorage.setItem('thab_name', name);
-    socket.send({ type: 'create', name, seatCount, hookRule, takeSeat });
+    socket.send({ type: 'create', name, seatCount, maxHandSize, hookRule, takeSeat });
   };
 
   const join = (name: string, roomCode: string) => {

@@ -10,9 +10,9 @@ import {
   playCard,
   startNextHand
 } from '../shared/engine.js';
-import { GameConfig, GameState, HAND_SIZES, PlayerInfo } from '../shared/types.js';
+import { GameConfig, GameState, handSizes, PlayerInfo, Suit } from '../shared/types.js';
 
-const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS) || 2000;
+const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS) || 4000;
 const BOT_THINK_MS = Number(process.env.BOT_THINK_MS) || 900;
 
 interface Connection {
@@ -213,7 +213,7 @@ export class Room {
       phase: state.phase,
       handIndex: state.handIndex,
       handNumber: state.handIndex + 1,
-      handCount: HAND_SIZES.length,
+      handCount: handSizes(this.config.maxHandSize).length,
       handSize: state.handSize,
       dealer: state.dealer,
       trumpCard: state.trumpCard,
@@ -238,10 +238,22 @@ export class Room {
   }
 }
 
-const SUIT_ORDER = { S: 0, H: 1, C: 2, D: 3 } as const;
+const BLACKS: Suit[] = ['S', 'C'];
+const REDS: Suit[] = ['H', 'D'];
 
-function sortHand<T extends { suit: keyof typeof SUIT_ORDER; rank: number }>(hand: T[]): T[] {
+/** Group by suit (descending rank), ordering the suits present so colors alternate
+ *  black/red wherever the hand allows. */
+function sortHand<T extends { suit: Suit; rank: number }>(hand: T[]): T[] {
+  const present = new Set(hand.map((c) => c.suit));
+  const blacks = BLACKS.filter((s) => present.has(s));
+  const reds = REDS.filter((s) => present.has(s));
+  const [first, second] = blacks.length >= reds.length ? [blacks, reds] : [reds, blacks];
+  const order = new Map<Suit, number>();
+  for (let i = 0; i < Math.max(first.length, second.length); i++) {
+    if (i < first.length) order.set(first[i], order.size);
+    if (i < second.length) order.set(second[i], order.size);
+  }
   return hand
     .slice()
-    .sort((a, b) => SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit] || b.rank - a.rank);
+    .sort((a, b) => order.get(a.suit)! - order.get(b.suit)! || b.rank - a.rank);
 }

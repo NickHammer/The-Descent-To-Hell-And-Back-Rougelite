@@ -11,6 +11,7 @@ export type Phase = 'lobby' | 'bidding' | 'playing' | 'handEnd' | 'gameEnd';
 
 export interface GameConfig {
   seatCount: number; // 2-4
+  maxHandSize: number; // peak hand size: hands run 1 up to this and back down (3-10)
   hookRule: boolean; // dealer may not bid so that total bids === hand size
 }
 
@@ -38,7 +39,7 @@ export interface GameState {
   config: GameConfig;
   players: PlayerInfo[];
   phase: Phase;
-  handIndex: number; // 0..18
+  handIndex: number; // 0 .. 2*maxHandSize-2
   handSize: number;
   dealer: number;
   trumpCard: Card | null;
@@ -56,8 +57,11 @@ export interface GameState {
   history: HandResult[];
 }
 
-/** The hand sizes for the 19 hands: 1..10..1 */
-export const HAND_SIZES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+/** The hand sizes for a game peaking at `peak` cards: 1..peak..1 (2*peak - 1 hands). */
+export function handSizes(peak: number): number[] {
+  const up = Array.from({ length: peak }, (_, i) => i + 1);
+  return up.concat(up.slice(0, -1).reverse());
+}
 
 export const SUIT_NAMES: Record<Suit, string> = {
   S: 'Spades',
@@ -66,11 +70,12 @@ export const SUIT_NAMES: Record<Suit, string> = {
   C: 'Clubs'
 };
 
+// U+FE0E forces text presentation so suits render as crisp font glyphs, not emoji.
 export const SUIT_GLYPHS: Record<Suit, string> = {
-  S: '♠',
-  H: '♥',
-  D: '♦',
-  C: '♣'
+  S: '♠︎',
+  H: '♥︎',
+  D: '♦︎',
+  C: '♣︎'
 };
 
 export function rankLabel(rank: number): string {

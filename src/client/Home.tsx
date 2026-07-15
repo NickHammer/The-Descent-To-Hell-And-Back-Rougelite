@@ -10,11 +10,18 @@ export function Home({
   initialName: string;
   /** pre-filled from a /join/CODE QR link */
   joinCode: string | null;
-  onCreate: (name: string, seatCount: number, hookRule: boolean, takeSeat: boolean) => void;
+  onCreate: (
+    name: string,
+    seatCount: number,
+    maxHandSize: number,
+    hookRule: boolean,
+    takeSeat: boolean
+  ) => void;
   onJoin: (name: string, code: string) => void;
 }) {
   const [name, setName] = useState(initialName);
   const [seatCount, setSeatCount] = useState(2);
+  const [maxHandSize, setMaxHandSize] = useState(10);
   const [hookRule, setHookRule] = useState(true);
   const [takeSeat, setTakeSeat] = useState(true);
   const [code, setCode] = useState(joinCode ?? '');
@@ -66,10 +73,24 @@ export function Home({
                 ))}
               </div>
             </label>
+            <label className="field">
+              Game length — hands go 1 up to this and back down ({maxHandSize * 2 - 1} hands)
+              <div className="seg">
+                {[5, 6, 7, 8, 9, 10].map((n) => (
+                  <button
+                    key={n}
+                    className={`seg-btn ${maxHandSize === n ? 'seg-on' : ''}`}
+                    onClick={() => setMaxHandSize(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </label>
             <label className="check">
               <input type="checkbox" checked={hookRule} onChange={(e) => setHookRule(e.target.checked)} />
-              Hook rule — on the back half (10 down to 1), the dealer can't make total bids
-              equal the tricks
+              Hook rule — on the back half (the descent back to 1), the dealer can't make total
+              bids equal the tricks
             </label>
             <label className="check">
               <input type="checkbox" checked={takeSeat} onChange={(e) => setTakeSeat(e.target.checked)} />
@@ -79,7 +100,7 @@ export function Home({
             <button
               className="btn btn-primary"
               disabled={takeSeat && !trimmed}
-              onClick={() => onCreate(trimmed || 'Host', seatCount, hookRule, takeSeat)}
+              onClick={() => onCreate(trimmed || 'Host', seatCount, maxHandSize, hookRule, takeSeat)}
             >
               Create game
             </button>

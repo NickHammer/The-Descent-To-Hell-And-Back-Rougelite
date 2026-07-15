@@ -109,9 +109,12 @@ export function Lobby({
       {openSeats > 0 && <JoinQR roomCode={state.roomCode} />}
 
       <p className="rules-note">
-        19 hands: 1 card up to 10 and back down to 1. Bid how many tricks you'll take — make your
-        bid exactly for bid + 5 points, miss it and you lose bid + 5.
-        {state.config.hookRule ? ' Hook rule is on for the back half (10 down to 1).' : ''}
+        {state.config.maxHandSize * 2 - 1} hands: 1 card up to {state.config.maxHandSize} and back
+        down to 1. Bid how many tricks you'll take — make your bid exactly for bid + 5 points, miss
+        it and you lose bid + 5.
+        {state.config.hookRule
+          ? ` Hook rule is on for the back half (${state.config.maxHandSize} down to 1).`
+          : ''}
       </p>
     </div>
   );

@@ -4,7 +4,8 @@
  */
 import WebSocket from 'ws';
 
-const ws = new WebSocket('ws://localhost:8080/ws');
+const PORT = Number(process.env.PORT) || 8080;
+const ws = new WebSocket(`ws://localhost:${PORT}/ws`);
 const send = (msg: object) => ws.send(JSON.stringify({ ...msg, token: 'e2e-human' }));
 
 let handsSeen = new Set<number>();

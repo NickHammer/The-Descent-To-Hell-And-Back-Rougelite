@@ -11,7 +11,7 @@ import {
   startNextHand,
   trickWinnerIndex
 } from './engine.js';
-import { Card, GameConfig, GameState, HAND_SIZES, PlayerInfo, Suit } from './types.js';
+import { Card, GameConfig, GameState, handSizes, PlayerInfo, Suit } from './types.js';
 
 function makeRng(seed: number): () => number {
   let s = seed >>> 0;
@@ -24,8 +24,8 @@ function makeRng(seed: number): () => number {
   };
 }
 
-function makeGame(seatCount: number, hookRule = false): GameState {
-  const config: GameConfig = { seatCount, hookRule };
+function makeGame(seatCount: number, hookRule = false, maxHandSize = 10): GameState {
+  const config: GameConfig = { seatCount, maxHandSize, hookRule };
   const players: PlayerInfo[] = Array.from({ length: seatCount }, (_, i) => ({
     name: `P${i}`,
     isBot: true,
@@ -56,6 +56,7 @@ describe('dealing', () => {
     expect(state.hands.every((h) => h.length === 1)).toBe(true);
     expect(state.trumpCard).not.toBeNull();
     expect(state.turn).toBe(1); // left of dealer bids first
+    expect(state.trickLeader).toBe(2); // house rule: left of the first bidder leads
   });
 
   it('deals distinct cards and trump is not in any hand', () => {
@@ -90,7 +91,8 @@ describe('bidding', () => {
     expect(dealerBids).toContain(3);
     placeBid(state, dealer, 3);
     expect(state.phase).toBe('playing');
-    expect(state.turn).toBe((dealer + 1) % 2);
+    // House rule: left of the first bidder leads — with 2 players that's the dealer.
+    expect(state.turn).toBe(dealer);
   });
 
   it('hook rule does not restrict the way up, including the 10-card peak', () => {
@@ -200,15 +202,22 @@ describe('scoring', () => {
 });
 
 describe('full games with AI', () => {
-  it.each([2, 3, 4])('plays all 19 hands cleanly with %i bots', (seatCount) => {
-    const rng = makeRng(1000 + seatCount);
-    const state = makeGame(seatCount, true);
+  it.each([
+    [2, 10],
+    [3, 10],
+    [4, 10],
+    [2, 5],
+    [3, 5],
+    [4, 5]
+  ])('plays a full game cleanly with %i bots peaking at %i cards', (seatCount, peak) => {
+    const rng = makeRng(1000 + seatCount * 10 + peak);
+    const state = makeGame(seatCount, true, peak);
     while (state.phase !== 'gameEnd') {
       startNextHand(state, rng);
       while (state.phase === 'bidding') {
         placeBid(state, state.turn, chooseBid(state, state.turn));
       }
-      if (state.config.hookRule && state.handIndex >= 10) {
+      if (state.config.hookRule && state.handIndex >= state.config.maxHandSize) {
         const total = state.bids.reduce<number>((s, b) => s + b!, 0);
         expect(total).not.toBe(state.handSize);
       }
@@ -221,7 +230,7 @@ describe('full games with AI', () => {
       const totalTaken = state.tricksTaken.reduce((a, b) => a + b, 0);
       expect(totalTaken).toBe(state.handSize);
     }
-    expect(state.history.length).toBe(HAND_SIZES.length);
+    expect(state.history.length).toBe(handSizes(peak).length);
     // Every hand's points must be exactly ±(bid + 5).
     for (const hand of state.history) {
       hand.points.forEach((p, seat) => {

@@ -39,9 +39,10 @@ export function Rules() {
             seats with bots.
           </li>
           <li>
-            <b>The hands:</b> a full game is 19 hands. The first hand deals 1 card to each player,
-            the next 2, and so on up to 10 — then back down: 9, 8, … all the way to a final 1-card
-            hand.
+            <b>The hands:</b> a classic game is 19 hands. The first hand deals 1 card to each
+            player, the next 2, and so on up to 10 — then back down: 9, 8, … all the way to a final
+            1-card hand. (For a shorter game, the host can lower the peak — e.g. 1-up-to-5-and-back
+            is 9 hands.)
           </li>
           <li>
             <b>Trump:</b> after each deal, the next card of the deck is flipped face-up. Its suit is
@@ -72,7 +73,10 @@ export function Rules() {
       <section>
         <h2>Playing a hand</h2>
         <ul>
-          <li>The player left of the dealer leads the first trick with any card.</li>
+          <li>
+            The first trick of each hand is led by the player to the left of the first bidder —
+            two seats left of the dealer. (House rule: standard Oh Hell has the first bidder lead.)
+          </li>
           <li>
             Everyone else must <b>follow suit</b> if they can. If you have no cards of the led suit,
             you may play anything — including a trump.
