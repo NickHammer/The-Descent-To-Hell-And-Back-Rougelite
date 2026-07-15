@@ -888,6 +888,84 @@ input[type='text'],
   font-size: 0.8rem;
 }
 
+/* ---------- content pages (rules, privacy) ---------- */
+
+.content-page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px 4px 48px;
+  line-height: 1.55;
+}
+
+.content-page .title {
+  font-size: 1.9rem;
+}
+
+.content-page section {
+  background: var(--panel);
+  border: 1px solid #2c3a33;
+  border-radius: 12px;
+  padding: 6px 20px 14px;
+  margin-top: 16px;
+}
+
+.content-page h2 {
+  color: var(--accent);
+  font-size: 1.15rem;
+  margin: 14px 0 4px;
+}
+
+.content-page h3 {
+  font-size: 1rem;
+  margin: 14px 0 4px;
+}
+
+.content-page p {
+  margin: 8px 0;
+}
+
+.content-page ul,
+.content-page ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.content-page li {
+  margin: 6px 0;
+}
+
+.content-page section a {
+  color: var(--accent);
+}
+
+.back-link {
+  display: inline-block;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.back-link:hover {
+  color: var(--ink);
+}
+
+.page-footer {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.page-footer a {
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.page-footer a:hover {
+  color: var(--ink);
+}
+
 /* ---------- toasts ---------- */
 
 .toast {

@@ -25,7 +25,10 @@ export function Home({
   return (
     <div className="home">
       <h1 className="title">To Hell and Back</h1>
-      <p className="subtitle">Bid your tricks. Take exactly that many. 1 up to 10 and back again.</p>
+      <p className="subtitle">
+        An online version of the classic Oh Hell card game. Bid your tricks. Take exactly that
+        many. 1 up to 10 and back again.
+      </p>
 
       <label className="field">
         Your name
@@ -107,6 +110,12 @@ export function Home({
           </button>
         </>
       )}
+
+      <footer className="page-footer">
+        <a href="/rules">How to play Oh Hell &amp; strategy</a>
+        <span aria-hidden="true"> · </span>
+        <a href="/privacy">Privacy</a>
+      </footer>
 
       {showBoard && <Leaderboard onClose={() => setShowBoard(false)} />}
     </div>
