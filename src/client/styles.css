@@ -979,6 +979,167 @@ input[type='text'],
   color: var(--ink);
 }
 
+/* ---------- roguelite (The Descent) ---------- */
+
+/* Region palettes override the table's CSS variables wholesale. Placeholder
+   for the full theme swap — real art comes later. */
+.rogue {
+  min-height: 100vh;
+  margin: -12px;
+  padding: 12px;
+}
+
+.rogue-hell {
+  --felt: #5e1f16;
+  --felt-dark: #3c120c;
+  --bg: #170b08;
+  --panel: #26140f;
+  --ink: #f2e4dc;
+  --muted: #b3907f;
+  --accent: #ff8b3d;
+  background: radial-gradient(ellipse at 50% -20%, #35150c 0%, var(--bg) 70%);
+}
+
+.rogue-bottom {
+  --felt: #2a0d21;
+  --felt-dark: #180512;
+  --bg: #0c0410;
+  --panel: #1c0f1e;
+  --ink: #ece0f2;
+  --muted: #a68bb3;
+  --accent: #d54ae0;
+  background: radial-gradient(ellipse at 50% 120%, #260b28 0%, var(--bg) 70%);
+}
+
+.rogue-heaven {
+  --felt: #1d3a5c;
+  --felt-dark: #122843;
+  --bg: #0a1220;
+  --panel: #16202f;
+  --ink: #e8eef7;
+  --muted: #93a5bd;
+  --accent: #ffd35c;
+  background: radial-gradient(ellipse at 50% -20%, #24354d 0%, var(--bg) 70%);
+}
+
+.rogue,
+.rogue .home,
+.rogue .game {
+  color: var(--ink);
+}
+
+.rogue .panel {
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.rogue-hudbar {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.rogue-hud {
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.rogue-flavor {
+  color: var(--muted);
+  margin: 4px 0;
+  font-size: 0.95rem;
+}
+
+.rogue-quirk {
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.rogue-ledger {
+  color: var(--ink);
+}
+
+.rogue-demon-tag {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.rogue-ruleslist,
+.rogue-log {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.rogue-log {
+  color: var(--muted);
+}
+
+.rogue-track {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.rogue-stop-cleared {
+  color: var(--muted);
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.rogue-stop-current {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.rogue-stop-future {
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.rogue-abandon {
+  align-self: center;
+  opacity: 0.7;
+}
+
+.rogue-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
+  padding-bottom: 10px;
+}
+
+.rogue-offer:last-of-type {
+  border-bottom: none;
+}
+
+.rogue-card-back {
+  background: repeating-linear-gradient(45deg, #431c1c 0 5px, #612929 5px 10px);
+  border: 1px solid #7c4a3a;
+  display: inline-block;
+}
+
+.rogue-shift {
+  animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.rogue-entry {
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+
 /* ---------- toasts ---------- */
 
 .toast {

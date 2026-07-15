@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { Privacy } from './Privacy.js';
+import { RunApp } from './rogue/RunApp.js';
 import { Rules } from './Rules.js';
 import './styles.css';
 
@@ -9,6 +10,8 @@ import './styles.css';
 // path check at boot is all the routing we need — no socket on these pages.
 function pageForPath() {
   switch (location.pathname) {
+    case '/run':
+      return <RunApp />;
     case '/rules':
       return <Rules />;
     case '/privacy':

@@ -48,6 +48,10 @@ export function Home({
         />
       </label>
 
+      <a className="btn btn-primary rogue-entry" href="/run">
+        🔥 The Descent — solo roguelite (prototype)
+      </a>
+
       {joinCode ? (
         <div className="panel">
           <h2>Join game {joinCode}</h2>

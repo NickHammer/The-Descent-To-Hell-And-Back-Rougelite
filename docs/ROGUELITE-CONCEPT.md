@@ -88,6 +88,26 @@ judgment under uncertainty, so power = better information or softer punishment, 
 - Single-player only at first — no server needed; the whole run can live client-side,
   which also means it works offline and costs nothing to host.
 
+## Status (2026-07-15): playable vertical slice at `/run`
+
+Built and verified (33 tests incl. headless full runs; driven end-to-end in a browser):
+
+- **Core** (`src/rogue/`): seeded track builder, run state (grace/souls/relics/attempts),
+  hand resolution with retry-on-miss, shops, all five launch relics, five demons.
+- **Client** (`src/client/rogue/`): `useLocalHand` runs the engine + `ai.ts` demons fully
+  in-browser on timers (no server); map / shop / hand / death / paradise screens; run
+  persists in localStorage; region palettes (hell/bottom/heaven) as placeholder theming.
+- **New base rule** (design call made during the build): in the roguelite the trump card
+  stays **face-down while you bid** — the demons can see it, you can't. This is what makes
+  information relics (Loaded Die) worth buying; the multiplayer game is unchanged.
+- Launch demons: Imp (none), Liar (demon bids hidden), Hoarder (demon tricks hidden),
+  Usurer (misses cost 2 grace), Adversary boss (trump shifts every 3 tricks).
+- Numbers (all untuned first guesses): grace 3, souls = 3 + bid (+8 boss bounty),
+  heal 6, relic costs 8–18, 2 demons at stops 1–6 then 3, shops after stops 3/6/9/12/15/18.
+
+Not built yet: full theme art, meta-progression/unlocks, daily seed UI, more relics/demons,
+sounds beyond the shared table set, mobile layout pass, standalone-site extraction.
+
 ## Decisions (2026-07-15)
 
 The former open questions, answered:
