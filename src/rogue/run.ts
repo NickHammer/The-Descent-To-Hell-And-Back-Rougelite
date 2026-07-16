@@ -23,7 +23,7 @@ export interface StopDef {
   shopAfter: boolean; // a shop opens after clearing this stop
 }
 
-export type RunPhase = 'map' | 'shop' | 'dead' | 'won';
+export type RunPhase = 'gift' | 'map' | 'shop' | 'dead' | 'won';
 
 export interface RunState {
   seed: number;
@@ -69,10 +69,49 @@ export function newRun(seed = Math.floor(Math.random() * 2 ** 31)): RunState {
     souls: 0,
     relics: [],
     attempts: 0,
+    phase: 'gift',
+    shopOffers: giftOffers(seed),
+    log: ['You wake at the gate. Something has left you a gift.']
+  };
+}
+
+const INFO_RELICS: RelicId[] = ['loadedDie', 'graveLedger'];
+
+/**
+ * Every run opens with a choice of one of three relics — an information relic
+ * is always among them, so the blind stretch (circles 4-6, crossed on carried
+ * grace with no shop in between) always has counterplay on offer.
+ */
+export function giftOffers(seed: number): RelicId[] {
+  const rng = mulberry32(seed ^ 0x51f7);
+  const offers = [pick(rng, INFO_RELICS)];
+  while (offers.length < 3) {
+    const candidate = pick(rng, ALL_RELIC_IDS);
+    if (!offers.includes(candidate)) offers.push(candidate);
+  }
+  return offers;
+}
+
+export function takeGift(run: RunState, id: RelicId): RunState {
+  if (run.phase !== 'gift') throw new Error('No gift to take');
+  if (!run.shopOffers.includes(id)) throw new Error('Not offered');
+  const next: RunState = {
+    ...run,
     phase: 'map',
     shopOffers: [],
-    log: ['You wake at the gate. The only way back is down.']
+    relics: [...run.relics, id],
+    log: [...run.log, `You take the ${RELICS[id].name}. The gate opens.`]
   };
+  applyRelicEffects(next, id);
+  return next;
+}
+
+/** Immediate (non-passive) effects a relic applies when gained. */
+function applyRelicEffects(run: RunState, id: RelicId): void {
+  if (id === 'secondSoul') {
+    run.maxGrace += 1;
+    run.grace = Math.min(run.maxGrace, run.grace + 1);
+  }
 }
 
 /** Souls earned for making a bid: bold bids pay more; the boss pays a bounty. */
@@ -173,10 +212,7 @@ export function buyRelic(run: RunState, id: RelicId): RunState {
     shopOffers: run.shopOffers.filter((o) => o !== id),
     log: [...run.log, `Bought ${relic.name} for ${relic.cost} souls.`]
   };
-  if (id === 'secondSoul') {
-    next.maxGrace += 1;
-    next.grace = Math.min(next.maxGrace, next.grace + 1);
-  }
+  applyRelicEffects(next, id);
   return next;
 }
 

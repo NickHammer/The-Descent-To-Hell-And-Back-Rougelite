@@ -102,6 +102,12 @@ Built and verified (33 tests incl. headless full runs; driven end-to-end in a br
   information relics (Loaded Die) worth buying; the multiplayer game is unchanged.
   (Tuned after first playtests: fully-blind 1–2 card hands were coin flips and killed runs
   at Circle 2 through no fault of the player, so small hands now show the trump.)
+- **The gift at the gate** (added after playtest #2 died at Circle 6): every run opens
+  with a choice of 1 of 3 seeded relics, always including an information relic. Rationale:
+  shops sit after circles 3/6/9, so the first blind stretch (circles 4–6) is crossed on
+  carried grace (max 3) with expected losses ≈ 3.6 at realistic make-rates — a structural
+  wall unless counterplay (Loaded Die) is guaranteed to be purchasable. Next knobs if the
+  wall persists: miss-by-one forgiveness on 6+ card hands, then grace 4.
 - Launch demons: Imp (none), Liar (demon bids hidden), Hoarder (demon tricks hidden),
   Usurer (misses cost 2 grace), Adversary boss (trump shifts every 3 tricks).
 - Numbers (all untuned first guesses): grace 3, souls = 3 + bid (+8 boss bounty),

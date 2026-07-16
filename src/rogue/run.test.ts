@@ -8,6 +8,7 @@ import {
   buildTrack,
   buyHeal,
   buyRelic,
+  giftOffers,
   isTrumpBlind,
   leaveShop,
   newRun,
@@ -16,8 +17,14 @@ import {
   soulsForClear,
   STOP_COUNT,
   StopDef,
+  takeGift,
   useFerrymansCoin
 } from './run.js';
+
+/** A run that has already taken its gate gift and stands on the map. */
+function startedRun(seed: number): RunState {
+  return { ...newRun(seed), phase: 'map', shopOffers: [] };
+}
 
 describe('track', () => {
   it('builds 19 stops shaped 1..10..1 with the boss at the bottom', () => {
@@ -51,7 +58,7 @@ describe('resolution', () => {
   const track = buildTrack(7);
 
   it('made bid advances and pays souls', () => {
-    const run = newRun(7);
+    const run = startedRun(7);
     const next = resolveHand(run, track, { bid: 1, taken: 1 });
     expect(next.stopIndex).toBe(1);
     expect(next.souls).toBe(soulsForClear(1, false));
@@ -60,7 +67,7 @@ describe('resolution', () => {
   });
 
   it('missed bid costs grace and retries the same stop', () => {
-    const run = newRun(7);
+    const run = startedRun(7);
     const next = resolveHand(run, track, { bid: 1, taken: 0 });
     expect(next.stopIndex).toBe(0);
     expect(next.grace).toBe(2);
@@ -68,7 +75,7 @@ describe('resolution', () => {
   });
 
   it('the usurer takes double grace', () => {
-    const run: RunState = { ...newRun(7), stopIndex: 6 };
+    const run: RunState = { ...startedRun(7), stopIndex: 6 };
     const usurerTrack: StopDef[] = track.map((s, i) =>
       i === 6 ? { ...s, demonId: 'usurer' as const } : s
     );
@@ -77,7 +84,7 @@ describe('resolution', () => {
   });
 
   it('cracked halo forgives a miss-by-one but pays nothing', () => {
-    const run: RunState = { ...newRun(7), relics: ['crackedHalo'] };
+    const run: RunState = { ...startedRun(7), relics: ['crackedHalo'] };
     const next = resolveHand(run, track, { bid: 1, taken: 0 });
     expect(next.grace).toBe(3);
     expect(next.souls).toBe(0);
@@ -88,14 +95,14 @@ describe('resolution', () => {
   });
 
   it('dies at zero grace', () => {
-    let run: RunState = { ...newRun(7), grace: 1 };
+    let run: RunState = { ...startedRun(7), grace: 1 };
     run = resolveHand(run, track, { bid: 0, taken: 1 });
     expect(run.phase).toBe('dead');
     expect(run.grace).toBe(0);
   });
 
   it('opens a shop after stop 2 and wins after the last stop', () => {
-    let run: RunState = { ...newRun(7), stopIndex: 2 };
+    let run: RunState = { ...startedRun(7), stopIndex: 2 };
     run = resolveHand(run, track, { bid: 0, taken: 0 });
     expect(run.phase).toBe('shop');
     expect(run.shopOffers.length).toBeGreaterThan(0);
@@ -103,7 +110,7 @@ describe('resolution', () => {
     expect(run.phase).toBe('map');
     expect(run.stopIndex).toBe(3);
 
-    let last: RunState = { ...newRun(7), stopIndex: STOP_COUNT - 1 };
+    let last: RunState = { ...startedRun(7), stopIndex: STOP_COUNT - 1 };
     last = resolveHand(last, track, { bid: 1, taken: 1 });
     expect(last.phase).toBe('won');
   });
@@ -113,7 +120,7 @@ describe('shop', () => {
   const track = buildTrack(11);
 
   function atShop(souls: number): RunState {
-    let run: RunState = { ...newRun(11), stopIndex: 2, souls };
+    let run: RunState = { ...startedRun(11), stopIndex: 2, souls };
     run = resolveHand(run, track, { bid: 0, taken: 0 });
     expect(run.phase).toBe('shop');
     return run;
@@ -149,17 +156,53 @@ describe('shop', () => {
   });
 });
 
+describe('the gift at the gate', () => {
+  it('every run opens with a choice of three, always including an information relic', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const run = newRun(seed);
+      expect(run.phase).toBe('gift');
+      expect(run.shopOffers.length).toBe(3);
+      expect(new Set(run.shopOffers).size).toBe(3);
+      expect(run.shopOffers.some((id) => id === 'loadedDie' || id === 'graveLedger')).toBe(true);
+      expect(run.shopOffers).toEqual(giftOffers(seed));
+    }
+  });
+
+  it('taking the gift is free, applies effects, and opens the map', () => {
+    const run = newRun(99);
+    const taken = takeGift(run, run.shopOffers[0]);
+    expect(taken.phase).toBe('map');
+    expect(taken.relics).toEqual([run.shopOffers[0]]);
+    expect(taken.souls).toBe(0);
+    expect(taken.shopOffers).toEqual([]);
+    expect(() => takeGift(taken, 'loadedDie')).toThrow('No gift');
+
+    const withSoul: RunState = { ...newRun(99), shopOffers: ['secondSoul', 'loadedDie', 'crackedHalo'], grace: 2 };
+    const soulTaken = takeGift(withSoul, 'secondSoul');
+    expect(soulTaken.maxGrace).toBe(4);
+    expect(soulTaken.grace).toBe(3);
+
+    const fixed: RunState = { ...newRun(99), shopOffers: ['loadedDie', 'secondSoul', 'crackedHalo'] };
+    expect(() => takeGift(fixed, 'ferrymansCoin')).toThrow('Not offered');
+  });
+
+  it('cannot play a hand before taking the gift', () => {
+    const run = newRun(3);
+    expect(() => resolveHand(run, buildTrack(3), { bid: 0, taken: 0 })).toThrow();
+  });
+});
+
 describe("ferryman's coin", () => {
   const track = buildTrack(5);
 
   it('skips a stop but never the bottom', () => {
-    let run: RunState = { ...newRun(5), relics: ['ferrymansCoin'] };
+    let run: RunState = { ...startedRun(5), relics: ['ferrymansCoin'] };
     run = useFerrymansCoin(run, track);
     expect(run.stopIndex).toBe(1);
     expect(run.relics).not.toContain('ferrymansCoin');
     expect(() => useFerrymansCoin(run, track)).toThrow('No coin');
 
-    const atBottom: RunState = { ...newRun(5), stopIndex: BOTTOM_INDEX, relics: ['ferrymansCoin'] };
+    const atBottom: RunState = { ...startedRun(5), stopIndex: BOTTOM_INDEX, relics: ['ferrymansCoin'] };
     expect(() => useFerrymansCoin(atBottom, track)).toThrow('Adversary');
   });
 });
@@ -194,6 +237,7 @@ describe('full runs (headless)', () => {
   it.each([1, 2, 3, 4, 5])('run with seed %i ends in death or paradise', (seed) => {
     const track = buildTrack(seed);
     let run = newRun(seed);
+    run = takeGift(run, run.shopOffers[0]);
     let guard = 0;
     while (run.phase === 'map' && guard++ < 300) {
       const outcome = playStop(track[run.stopIndex], seed * 1000 + run.attempts);

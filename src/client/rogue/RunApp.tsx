@@ -17,6 +17,7 @@ import {
   resolveHand,
   RunState,
   STOP_COUNT,
+  takeGift,
   useFerrymansCoin
 } from '../../rogue/run.js';
 import { play as playSound } from '../sounds.js';
@@ -66,6 +67,8 @@ export function RunApp() {
         }}
       />
     );
+  } else if (run.phase === 'gift') {
+    view = <GiftView run={run} onChange={update} />;
   } else if (run.phase === 'shop') {
     view = <ShopView run={run} onChange={update} />;
   } else if (run.phase === 'dead' || run.phase === 'won') {
@@ -172,6 +175,7 @@ function StartView({ onStart }: { onStart: () => void }) {
           </li>
           <li>Made bids earn <b>souls</b>; shops every third gate sell relics and grace.</li>
           <li>Each table's demon warps one rule — it's shown before you play.</li>
+          <li>You begin with a <b>gift</b>: one of three relics, yours to choose.</li>
         </ul>
         <button className="btn btn-primary" onClick={onStart}>
           🔥 Begin the descent
@@ -254,6 +258,33 @@ function MapView({
       <button className="btn rogue-abandon" onClick={onAbandon}>
         Abandon run
       </button>
+    </div>
+  );
+}
+
+function GiftView({ run, onChange }: { run: RunState; onChange: (r: RunState) => void }) {
+  return (
+    <div className="home rogue-gift">
+      <h1 className="title">A Gift at the Gate</h1>
+      <p className="subtitle">
+        Someone — something — left these for you. Take one. The road below is blind and hungry.
+      </p>
+      <div className="panel">
+        {run.shopOffers.map((id) => {
+          const r = RELICS[id];
+          return (
+            <div key={id} className="rogue-offer">
+              <div>
+                <b>{r.name}</b> <span className="muted">({r.tier})</span>
+                <div className="rogue-flavor">{r.effect}</div>
+              </div>
+              <button className="btn btn-primary" onClick={() => onChange(takeGift(run, id))}>
+                Take
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
