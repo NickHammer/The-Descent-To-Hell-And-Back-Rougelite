@@ -41,6 +41,8 @@ export interface LocalHand {
   trumpsPlayed: number;
   /** set when the Adversary shifts the trump, cleared on the next trick */
   trumpShifted: boolean;
+  /** the most recent bid placed, so the table can announce it */
+  lastBid: { seat: number; bid: number } | null;
   result: { bid: number; taken: number } | null;
   bid: (b: number) => void;
   play: (cardId: string) => void;
@@ -51,6 +53,7 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
   const rng = useRef<() => number>(() => Math.random());
   const trumps = useRef(0);
   const shifted = useRef(false);
+  const lastBid = useRef<{ seat: number; bid: number } | null>(null);
   const [, setVersion] = useState(0);
 
   if (game.current === null) {
@@ -106,7 +109,9 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
         const seat = state.turn;
         if (seat <= 0) return;
         if (state.phase === 'bidding') {
-          placeBid(state, seat, chooseBid(state, seat));
+          const demonBid = chooseBid(state, seat);
+          placeBid(state, seat, demonBid);
+          lastBid.current = { seat, bid: demonBid };
         } else if (state.phase === 'playing') {
           const card = chooseCard(state, seat);
           if (card.suit === state.trumpCard!.suit) trumps.current += 1;
@@ -125,6 +130,7 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
   const bid = (b: number) => {
     if (state.turn !== 0 || state.phase !== 'bidding') return;
     placeBid(state, 0, b);
+    lastBid.current = { seat: 0, bid: b };
     bump();
   };
 
@@ -146,6 +152,7 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
     sortedHand: sortHand(state.hands[0]),
     trumpsPlayed: trumps.current,
     trumpShifted: shifted.current,
+    lastBid: lastBid.current,
     result: handOver ? { bid: state.history[0].bids[0], taken: state.history[0].taken[0] } : null,
     bid,
     play

@@ -74,7 +74,11 @@ export function HandView({
             </div>
             <div className="player-line">
               {state.bids[i] === null ? (
-                <span className="muted">{bidding ? (i === state.turn ? 'bidding…' : 'waiting') : '—'}</span>
+                <span className="muted">{bidding ? (i === state.turn ? 'bidding…' : 'waits to bid') : '—'}</span>
+              ) : bidding ? (
+                <span>
+                  bids <b>{i > 0 && hideBids ? '?' : state.bids[i]}</b>
+                </span>
               ) : (
                 <span>
                   took <b>{i > 0 && hideTaken ? '?' : state.tricksTaken[i]}</b> of{' '}
@@ -93,15 +97,29 @@ export function HandView({
           </div>
         )}
         {state.trick.length === 0 && state.trickWinner === null ? (
-          <div className="table-hintline">
-            {bidding
-              ? myTurn
-                ? 'Your bid.'
-                : `${state.players[state.turn]?.name ?? '…'} is bidding…`
-              : myTurn
-                ? 'Your lead.'
-                : `${state.players[state.turn]?.name ?? '…'} leads…`}
-          </div>
+          <>
+            <div className="table-hintline">
+              {bidding
+                ? myTurn
+                  ? 'Your bid.'
+                  : `${state.players[state.turn]?.name ?? '…'} is bidding…`
+                : myTurn
+                  ? 'Your lead.'
+                  : `${state.players[state.turn]?.name ?? '…'} leads…`}
+            </div>
+            {bidding && hand.lastBid && (
+              <div className="winner-banner" key={`bid-${hand.lastBid.seat}`}>
+                {state.players[hand.lastBid.seat].name} bids{' '}
+                {hand.lastBid.seat > 0 && hideBids ? '… something' : hand.lastBid.bid}
+              </div>
+            )}
+            {!bidding && state.tricksTaken.every((t) => t === 0) && (
+              <div className="table-hintline small">
+                {state.players[state.trickLeader]?.name ?? '…'} leads the first trick — one seat
+                left of the first bidder
+              </div>
+            )}
+          </>
         ) : (
           <div className="trick-area">
             {state.trick.map((tc, i) => (
