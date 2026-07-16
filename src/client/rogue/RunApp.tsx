@@ -181,9 +181,6 @@ function StartView({ onStart }: { onStart: () => void }) {
           🔥 Begin the descent
         </button>
       </div>
-      <footer className="page-footer">
-        <a href="/">the multiplayer table</a>
-      </footer>
     </div>
   );
 }

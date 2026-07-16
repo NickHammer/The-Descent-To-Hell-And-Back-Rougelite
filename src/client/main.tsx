@@ -1,26 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App.js';
-import { Privacy } from './Privacy.js';
 import { RunApp } from './rogue/RunApp.js';
-import { Rules } from './Rules.js';
 import './styles.css';
 
-// Static content pages are reached by full page loads (plain <a> links), so a
-// path check at boot is all the routing we need — no socket on these pages.
-function pageForPath() {
-  switch (location.pathname) {
-    case '/run':
-      return <RunApp />;
-    case '/rules':
-      return <Rules />;
-    case '/privacy':
-      return <Privacy />;
-    default:
-      return <App />;
-  }
-}
-
+// The Descent is the whole site: every path renders the run (deep links like
+// /run from the shared-history days land here too).
 createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>{pageForPath()}</React.StrictMode>
+  <React.StrictMode>
+    <RunApp />
+  </React.StrictMode>
 );

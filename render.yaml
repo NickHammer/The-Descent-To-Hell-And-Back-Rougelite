@@ -1,0 +1,14 @@
+# Render blueprint: The Descent deploys as a static site — the whole game runs
+# client-side, so there is no server to host. In the Render dashboard choose
+# "New > Blueprint" and point it at this repo.
+services:
+  - type: web
+    name: the-descent
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      # SPA fallback: every path renders the app shell
+      - type: rewrite
+        source: /*
+        destination: /index.html
