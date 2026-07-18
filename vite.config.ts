@@ -5,11 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5173,
-    proxy: {
-      '/ws': { target: 'ws://localhost:8080', ws: true },
-      '/api': { target: 'http://localhost:8080' }
-    }
+    port: 5173
   },
   build: {
     outDir: 'dist'

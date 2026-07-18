@@ -1,79 +1,103 @@
-# To Hell and Back
+# The Descent
 
-An [Oh Hell](https://www.trickstercards.com/help/oh-hell/) card game for 2–4 players — play
-solo against bots, or with friends where everyone's phone is their private hand.
+A solo roguelite card game built on [Oh Hell](https://www.trickstercards.com/help/oh-hell/).
+You died. To get back, you play your way down through the nine circles of hell and up
+through the spheres of heaven — one hand of cards at every gate. Free, in your browser,
+entirely client-side.
 
-## Rules
+## The run
 
-- 19 hands: 1 card each, up to 10, and back down to 1. The deck is reshuffled every hand.
-- After the deal, one card is flipped to set the **trump suit**.
-- Starting left of the dealer (dealer bids last), each player **bids** how many tricks they'll take.
-- You must **follow the led suit** if you can; otherwise play a trump to win or slough anything.
-- The highest trump wins the trick, or the highest card of the led suit if no trump was played.
-- **Scoring:** make your bid exactly and score **bid + 5**; miss it (over or under) and score
-  **−(bid + 5)**. Bid 3 and make it: +8. Bid 2 and miss: −7.
-- **Hook rule** (optional, on by default): on the back half only (the 9-card hand after the
-  peak, down to the final 1-card hand), the dealer — who always bids last — may not bid an
-  amount that makes total bids equal the tricks available, so someone is always set to fail.
-  On the way up (1 through 10), everyone bids freely.
+```
+DESCENT (hell)                          ASCENT (heaven)
+Circle 1  · 1 card                      Sphere 1 · 9 cards
+Circle 2  · 2 cards                     Sphere 2 · 8 cards
+   …           …                           …          …
+Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
+        └── THE BOTTOM: 10 cards, boss demon ──┘
+```
+
+- **19 stops**, one hand of Oh Hell each: hand sizes climb 1→10 on the way down, then
+  shrink 10→1 on the way back up.
+- **Make your bid exactly to advance.** Miss it and you lose 1 **grace** and replay the
+  stop. Grace starts at 3; at 0 the run ends.
+- **Souls** are the run currency: 3 + your bid per made bid (bold bids pay more), plus a
+  bounty for beating the boss. A **shop** opens every third stop — spend souls on relics
+  or restore 1 grace.
+- **The gift at the gate**: every run opens with a choice of 1 of 3 relics, and an
+  information relic is always among them.
+- **The light fails as you descend**: on hands of 4+ cards the trump card stays face-down
+  while you bid. The demons can see it. Small hands play fair.
+- Runs are seeded — the track, demons, gift, and shops are deterministic per seed.
+
+### The demons
+
+Each stop seats 2–3 demons (the shared bot AI), and each demon warps one table rule.
+Quirks are always shown before the hand.
+
+| Demon | Quirk |
+|---|---|
+| Imp | None. A kind of innocence, around here. |
+| The Liar | Demons' bids stay hidden until the hand ends. |
+| The Hoarder | You can't see how many tricks the demons have taken. |
+| The Usurer | Missing your bid costs 2 grace at this table. |
+| The Adversary (boss) | The trump suit shifts every 3 tricks. |
+
+### The relics
+
+Information is the primary power axis; bid-tolerance is the rare tier.
+
+| Relic | Effect |
+|---|---|
+| Loaded Die | See the trump while bidding on deep hands (4+ cards). |
+| Grave Ledger | Running count of trumps played this hand. |
+| Second Soul | +1 max grace, and restores 1 grace when taken. |
+| Cracked Halo | Missing by exactly one costs no grace (but earns no souls). |
+| Ferryman's Coin | Skip a stop outright (consumed; not past the Adversary). |
+
+The full design rationale — and the decisions behind it — lives in
+[`docs/ROGUELITE-CONCEPT.md`](docs/ROGUELITE-CONCEPT.md).
 
 ## Running it
 
 ```
 npm install
-npm run build     # build the client (once, or after client changes)
-npm start         # serve everything at http://localhost:8080
+npm run dev       # hot reload at http://localhost:5173
 ```
 
-For development with hot reload: `npm run dev`, then open http://localhost:5173.
+Production build:
 
-> **Windows note:** the first time the server runs, allow Node.js through the firewall
-> (private networks) so phones on your Wi-Fi can connect.
+```
+npm run build     # outputs dist/
+npm run preview   # serve the built site locally
+```
 
-## How to play
+## Deploying
 
-**Solo vs bots** — open the site, enter your name, create a game with
-"I'm playing on this device" checked, add bots, deal.
-
-**2+ players, one household** — on the shared screen (PC/TV), create a game with
-"I'm playing on this device" **unchecked** — that screen becomes the table display.
-Each player scans the QR code with their phone (same Wi-Fi) and gets a private hand.
-The shared screen shows the trick, trump, bids, and scores.
-
-**Mixed** — play on the PC yourself and have others join by phone; bots fill any leftover seats.
-
-Phones can lock or refresh freely — the seat is reclaimed automatically on reconnect.
+The whole game runs client-side, so it deploys as a **static site** — no server, no
+database. `render.yaml` is a ready-made [Render](https://render.com) blueprint
+(New → Blueprint → point it at this repo): it builds with `npm ci && npm run build`,
+publishes `dist/`, and rewrites every path to `index.html` for SPA routing. Any static
+host with an SPA fallback works the same way.
 
 ## Project layout
 
-- `src/shared/` — game engine (pure TypeScript, no dependencies): rules, dealing, bidding,
-  trick resolution, scoring, and the bot AI. Fully unit-tested.
-- `src/server/` — Node + Express + WebSocket server. Owns the authoritative game state;
-  clients only ever see their own cards.
-- `src/client/` — React UI: home / lobby (QR joining) / game table.
-- `scripts/e2e.ts` — end-to-end test that plays a full game through the live server.
+- `src/shared/` — the Oh Hell engine (pure TypeScript, no dependencies): dealing,
+  bidding, trick resolution, and the bot AI that plays the demons. Fully unit-tested.
+- `src/rogue/` — run logic (pure, seeded, no DOM): the 19-stop track, grace, souls,
+  relics, demons, shops. Fully unit-tested.
+- `src/client/` — React UI: the run map, shops, and the hand view, which drives each
+  hand entirely in the browser via `rogue/useLocalHand.ts`.
+- `docs/ROGUELITE-CONCEPT.md` — the concept doc this game grew from.
 
 ## Checks
 
 ```
-npm test     # engine unit tests
-npm run sim  # 600 headless bot games, asserts no rule violations
-npm run e2e  # full game over WebSocket (server must be running; set TRICK_PAUSE_MS=30 BOT_THINK_MS=20 for speed)
+npm test      # engine + run-logic unit tests
+npm run sim   # 600 headless bot games through the engine, asserts no rule violations
 ```
 
-## Leaderboard
+## Lineage
 
-A global leaderboard (last 30 days / all time) ranks players by wins, then total points,
-and also shows bid accuracy, career points, and best single game.
-
-- Only **completed, human-only** games are recorded — any bot at the table means unranked.
-- Players are identified by name (case-insensitive), so the 30-day default keeps things fresh.
-- Requires a Postgres database. Create a free one at [neon.tech](https://neon.tech), then set
-  the `DATABASE_URL` environment variable (on Render: Environment → add `DATABASE_URL` with
-  the Neon connection string). The table is created automatically on first boot.
-- Without `DATABASE_URL` the game works normally; the leaderboard just reports it's disabled.
-
-## Roadmap
-
-- **Online play over the internet:** the architecture is already client/server, so this is
-  a deployment step — host the server (Fly.io, Render, etc.) and share the room code.
+The Descent began as a branch of a multiplayer Oh Hell game (shared table screen,
+phones as private hands) and split off as its own product in July 2026. The multiplayer
+game lives on in its original repo; this one carries only the engine they share.

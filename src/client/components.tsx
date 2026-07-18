@@ -1,5 +1,4 @@
 import { Card, SUIT_GLYPHS, rankLabel } from '../shared/types.js';
-import { PlayerView } from './view.js';
 
 /** Standard pip positions per rank as [x%, y%]; pips below the midline render upside down. */
 const PIPS: Record<number, [number, number][]> = {
@@ -77,46 +76,5 @@ export function CardView({
         </span>
       )}
     </button>
-  );
-}
-
-export function PlayerBadge({
-  player,
-  isDealer,
-  isTurn,
-  isYou,
-  bidding
-}: {
-  player: PlayerView;
-  isDealer: boolean;
-  isTurn: boolean;
-  isYou: boolean;
-  bidding: boolean;
-}) {
-  return (
-    <div className={`player-badge ${isTurn ? 'player-turn' : ''}`}>
-      <div className="player-name">
-        {!player.connected && !player.isBot && <span className="disc-dot" title="disconnected" />}
-        {player.name}
-        {isYou && <span className="you-tag"> (you)</span>}
-        {isDealer && <span className="dealer-chip" title="Dealer">D</span>}
-        {player.cardsLeft > 0 && (
-          <span className="cards-left" title={`${player.cardsLeft} cards left`}>
-            <span className="mini-back" />
-            {player.cardsLeft}
-          </span>
-        )}
-      </div>
-      <div className="player-line">
-        {player.bid === null ? (
-          <span className="muted">{bidding ? (isTurn ? 'bidding…' : 'waiting to bid') : '—'}</span>
-        ) : (
-          <span className={player.tricksTaken > player.bid ? 'busted' : ''}>
-            took <b>{player.tricksTaken}</b> of <b>{player.bid}</b> bid
-          </span>
-        )}
-      </div>
-      <div className="player-score">{player.score} pts</div>
-    </div>
   );
 }

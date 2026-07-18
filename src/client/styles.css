@@ -73,79 +73,6 @@ body {
   font-size: 1.1rem;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-input[type='text'],
-.field input:not([type]),
-.field input[type='text'],
-.code-input {
-  background: #101a15;
-  border: 1px solid #33463c;
-  color: var(--ink);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 1rem;
-}
-
-.code-input {
-  width: 7em;
-  text-transform: uppercase;
-  letter-spacing: 0.3em;
-  font-weight: 700;
-  text-align: center;
-}
-
-.join-row {
-  display: flex;
-  gap: 10px;
-}
-
-.check {
-  display: block;
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.check .hint {
-  display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin-left: 1.7em;
-}
-
-.check input {
-  margin-right: 8px;
-}
-
-.seg {
-  display: flex;
-  gap: 6px;
-}
-
-.seg-btn {
-  flex: 1;
-  padding: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #33463c;
-  background: #101a15;
-  color: var(--ink);
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.seg-on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #201700;
-  font-weight: 700;
-}
-
 .btn {
   padding: 10px 18px;
   border-radius: 8px;
@@ -179,89 +106,6 @@ input[type='text'],
 
 .muted {
   color: var(--muted);
-}
-
-/* ---------- lobby ---------- */
-
-.lobby {
-  max-width: 520px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: center;
-  padding-bottom: 40px;
-}
-
-.room-code-box {
-  font-size: 1.1rem;
-  color: var(--muted);
-}
-
-.room-code {
-  color: var(--accent);
-  font-weight: 800;
-  font-size: 1.6rem;
-  letter-spacing: 0.25em;
-  margin-left: 6px;
-}
-
-.seat-list {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.seat {
-  background: var(--panel);
-  border: 1px dashed #3a4f44;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-
-.seat-filled {
-  border-style: solid;
-  border-color: #4d685a;
-}
-
-.lobby-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.qr-box {
-  background: #fff;
-  border-radius: 12px;
-  padding: 14px;
-  text-align: center;
-  color: #222;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-}
-
-.qr-url {
-  font-family: Consolas, monospace;
-  font-size: 0.85rem;
-  color: #444;
-  word-break: break-all;
-}
-
-.qr-box .hint {
-  font-size: 0.8rem;
-  color: #666;
-  max-width: 240px;
-}
-
-.rules-note {
-  color: var(--muted);
-  font-size: 0.85rem;
-  text-align: center;
-  max-width: 420px;
 }
 
 /* ---------- game ---------- */
@@ -301,17 +145,6 @@ input[type='text'],
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.btn-small {
-  padding: 5px 12px;
-  font-size: 0.85rem;
-}
-
-.room-tag {
-  color: var(--muted);
-  letter-spacing: 0.2em;
-  font-weight: 700;
 }
 
 .players-strip {
@@ -370,27 +203,8 @@ input[type='text'],
   font-weight: 800;
 }
 
-.disc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--danger);
-  display: inline-block;
-}
-
 .player-line {
   font-size: 0.88rem;
-  margin-top: 2px;
-}
-
-.busted {
-  color: var(--danger);
-}
-
-.player-score {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 0.95rem;
   margin-top: 2px;
 }
 
@@ -478,33 +292,6 @@ input[type='text'],
   padding: 6px 16px;
   border-radius: 999px;
   animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-
-/* completed trick flies to the winner's badge, then stays gone until the server sweeps it */
-.trick-sweeping .trick-card {
-  animation: sweep-away 0.5s cubic-bezier(0.5, 0, 0.85, 0.4) forwards;
-}
-
-.trick-sweeping .trick-card .trick-name {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-@keyframes sweep-away {
-  to {
-    transform: translate(var(--sweep-x, 0px), var(--sweep-y, -240px)) scale(0.2) rotate(8deg);
-    opacity: 0;
-  }
-}
-
-.trick-sweeping ~ .winner-banner {
-  animation: fade-out 0.4s ease-out forwards;
-}
-
-@keyframes fade-out {
-  to {
-    opacity: 0;
-  }
 }
 
 @keyframes pop-in {
@@ -664,27 +451,6 @@ input[type='text'],
   bottom: 2px;
   right: 3px;
   transform: rotate(180deg);
-}
-
-/* opponent card-count chip */
-
-.cards-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.mini-back {
-  width: 11px;
-  height: 15px;
-  border-radius: 2px;
-  border: 1px solid #d8d2c2;
-  background: repeating-linear-gradient(45deg, #8c2f2f 0 2px, #b04a4a 2px 4px);
-  display: inline-block;
 }
 
 .card-clickable {

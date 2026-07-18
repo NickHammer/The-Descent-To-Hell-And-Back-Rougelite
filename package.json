@@ -1,35 +1,23 @@
 {
-  "name": "to-hell-and-back",
+  "name": "the-descent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "tsx watch src/server/index.ts",
-    "dev:client": "vite --host",
+    "dev": "vite --host",
     "build": "vite build",
-    "start": "tsx src/server/index.ts",
+    "preview": "vite preview",
     "test": "vitest run",
-    "sim": "tsx src/shared/simulate.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "sim": "tsx src/shared/simulate.ts"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "pg": "^8.22.0",
-    "qrcode": "^1.5.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "ws": "^8.18.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/pg": "^8.20.0",
-    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "@types/ws": "^8.5.12",
     "@vitejs/plugin-react": "^4.3.1",
-    "concurrently": "^9.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.3",
