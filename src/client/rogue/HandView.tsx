@@ -1,6 +1,6 @@
 import { DEMONS } from '../../rogue/demons.js';
 import { RelicId } from '../../rogue/relics.js';
-import { isTrumpBlind, StopDef } from '../../rogue/run.js';
+import { isTrumpBlind, RunState, StopDef } from '../../rogue/run.js';
 import { SUIT_GLYPHS, SUIT_NAMES } from '../../shared/types.js';
 import { CardView } from '../components.js';
 import { useLocalHand } from './useLocalHand.js';
@@ -8,20 +8,31 @@ import { useLocalHand } from './useLocalHand.js';
 export function HandView({
   stop,
   relics,
+  hp,
+  maxHp,
+  demonHp,
+  demonMaxHp,
   grace,
   souls,
   playerName,
   seed,
-  onDone,
+  resolve,
+  onContinue,
   onQuit
 }: {
   stop: StopDef;
   relics: RelicId[];
+  hp: number;
+  maxHp: number;
+  demonHp: number;
+  demonMaxHp: number;
   grace: number;
   souls: number;
   playerName: string;
   seed: number;
-  onDone: (outcome: { bid: number; taken: number }) => void;
+  /** pure battle resolution for a finished hand, so the modal can report it */
+  resolve: (outcome: { bid: number; taken: number }) => RunState;
+  onContinue: (resolved: RunState) => void;
   onQuit: () => void;
 }) {
   const hand = useLocalHand(stop, playerName, seed);
@@ -32,6 +43,9 @@ export function HandView({
   const trumpHidden = bidding && isTrumpBlind(stop.handSize) && !relics.includes('loadedDie');
   const hideBids = stop.demonId === 'liar' && !hand.result;
   const hideTaken = stop.demonId === 'hoarder' && !hand.result;
+  const myBid = state.bids[0];
+  const bidDead =
+    state.phase === 'playing' && myBid !== null && state.tricksTaken[0] > myBid && !hand.result;
 
   return (
     <div className="game rogue-hand">
@@ -54,13 +68,35 @@ export function HandView({
           )}
         </div>
         <div className="topbar-right">
-          <span className="rogue-hud">❤ {grace}</span>
+          <span className="rogue-hud">🕊 {grace}</span>
           <span className="rogue-hud">✦ {souls}</span>
           <button className="btn rogue-quit" onClick={onQuit}>
             ✕ Quit
           </button>
         </div>
       </header>
+
+      <div className="battle-bar">
+        <div className="hp-block">
+          <div className="hp-label">
+            {playerName || 'You'} · ❤ {hp}/{maxHp}
+          </div>
+          <div className="hpbar">
+            <span className="hpbar-fill hpbar-you" style={{ width: `${(hp / maxHp) * 100}%` }} />
+          </div>
+        </div>
+        <div className="hp-block">
+          <div className="hp-label">
+            {demon.name} · 💀 {demonHp}/{demonMaxHp}
+          </div>
+          <div className="hpbar">
+            <span
+              className="hpbar-fill hpbar-demon"
+              style={{ width: `${(demonHp / demonMaxHp) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
 
       {stop.demonId !== 'imp' && <div className="rogue-quirk">⚠ {demon.quirk}</div>}
       {relics.includes('graveLedger') && (
@@ -147,6 +183,11 @@ export function HandView({
       </div>
 
       <div className="my-area">
+        {bidDead && !hand.hurrying && (
+          <button className="btn rogue-quit" onClick={hand.hurry}>
+            ⏩ The bid is dead — skip ahead
+          </button>
+        )}
         {bidding && myTurn && (
           <div className="bid-picker">
             <div className="bid-label">
@@ -183,19 +224,66 @@ export function HandView({
         </div>
       </div>
 
-      {hand.result && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h2>{hand.result.bid === hand.result.taken ? '⚖ Bid made' : '✗ Bid missed'}</h2>
-            <p className="winner-line">
-              You bid <b>{hand.result.bid}</b> and took <b>{hand.result.taken}</b>.
-            </p>
-            <button className="btn btn-primary" onClick={() => onDone(hand.result!)}>
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
+      {hand.result && <BattleReport outcome={hand.result} resolve={resolve} demonName={demon.name} onContinue={onContinue} />}
+    </div>
+  );
+}
+
+/** The post-hand modal: how the blow landed, and where the battle stands. */
+function BattleReport({
+  outcome,
+  resolve,
+  demonName,
+  onContinue
+}: {
+  outcome: { bid: number; taken: number };
+  resolve: (outcome: { bid: number; taken: number }) => RunState;
+  demonName: string;
+  onContinue: (resolved: RunState) => void;
+}) {
+  const report = resolve(outcome);
+  const lh = report.lastHand!;
+  const dead = report.phase === 'dead';
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h2>{lh.won ? `☠ ${demonName} falls` : lh.made ? '⚔ Bid made' : '✗ Bid missed'}</h2>
+        <p className="winner-line">
+          You bid <b>{outcome.bid}</b> and took <b>{outcome.taken}</b>.
+        </p>
+        {lh.made && !lh.won && (
+          <p className="winner-line">
+            <b>{lh.dmgDealt}</b> damage — {demonName} has <b>{report.demonHp}</b> HP left.
+          </p>
+        )}
+        {lh.won && (
+          <p className="winner-line">
+            <b>{lh.dmgDealt}</b> damage fells it. The gate opens.
+          </p>
+        )}
+        {!lh.made && lh.dmgTaken === 0 && (
+          <p className="winner-line">The Cracked Halo holds — no blood drawn.</p>
+        )}
+        {!lh.made && lh.dmgTaken > 0 && !lh.respawned && !dead && (
+          <p className="winner-line">
+            You take <b>{lh.dmgTaken}</b> — {report.hp}/{report.maxHp} HP left.
+          </p>
+        )}
+        {lh.respawned && (
+          <p className="winner-line">
+            You take <b>{lh.dmgTaken}</b> and fall — <b>grace catches you</b>. {report.grace} grace
+            left, and {demonName} keeps its wounds.
+          </p>
+        )}
+        {dead && (
+          <p className="winner-line">
+            You take <b>{lh.dmgTaken}</b> and fall. Your last grace gutters out.
+          </p>
+        )}
+        <button className="btn btn-primary" onClick={() => onContinue(report)}>
+          {lh.won ? 'Onward' : dead ? 'The reckoning' : 'Fight on'}
+        </button>
+      </div>
     </div>
   );
 }

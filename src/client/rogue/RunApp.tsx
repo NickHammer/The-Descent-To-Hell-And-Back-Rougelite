@@ -10,6 +10,7 @@ import {
   buildTrack,
   buyHeal,
   buyRelic,
+  demonMaxHpFor,
   HEAL_COST,
   leaveShop,
   newRun,
@@ -30,7 +31,15 @@ function loadRun(): RunState | null {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const run = JSON.parse(raw) as RunState;
-    return typeof run.seed === 'number' && typeof run.stopIndex === 'number' ? run : null;
+    const valid =
+      typeof run.seed === 'number' &&
+      typeof run.stopIndex === 'number' &&
+      // pre-battle-system saves lack HP; those runs can't continue
+      typeof run.hp === 'number' &&
+      typeof run.demonHp === 'number';
+    if (!valid) return null;
+    run.lastHand ??= null;
+    return run;
   } catch {
     return null;
   }
@@ -61,9 +70,13 @@ export function RunApp() {
       <LazyHand
         run={run}
         trackStop={track[run.stopIndex]}
-        onDone={(outcome) => {
-          setInHand(false);
-          update(resolveHand(run, track, outcome));
+        resolve={(outcome) => resolveHand(run, track, outcome)}
+        onContinue={(resolved) => {
+          // Stay at the table while the battle is undecided; leave for the
+          // map, shop, or reckoning once it is.
+          const battleOn = resolved.phase === 'map' && resolved.stopIndex === run.stopIndex;
+          if (!battleOn) setInHand(false);
+          update(resolved);
         }}
         onQuit={() => {
           if (window.confirm('Abandon this run and return to the gate? All progress is lost.')) {
@@ -142,12 +155,14 @@ function Backdrop({ region, depth }: { region: Region; depth: number }) {
 function LazyHand({
   run,
   trackStop,
-  onDone,
+  resolve,
+  onContinue,
   onQuit
 }: {
   run: RunState;
   trackStop: ReturnType<typeof buildTrack>[number];
-  onDone: (outcome: { bid: number; taken: number }) => void;
+  resolve: (outcome: { bid: number; taken: number }) => RunState;
+  onContinue: (resolved: RunState) => void;
   onQuit: () => void;
 }) {
   return (
@@ -155,11 +170,16 @@ function LazyHand({
       key={`${run.stopIndex}-${run.attempts}`}
       stop={trackStop}
       relics={run.relics}
+      hp={run.hp}
+      maxHp={run.maxHp}
+      demonHp={run.demonHp}
+      demonMaxHp={demonMaxHpFor(trackStop)}
       grace={run.grace}
       souls={run.souls}
       playerName={localStorage.getItem('thab_name') ?? 'You'}
       seed={(run.seed ^ Math.imul(run.attempts + 1, 2654435761)) >>> 0}
-      onDone={onDone}
+      resolve={resolve}
+      onContinue={onContinue}
       onQuit={onQuit}
     />
   );
@@ -176,14 +196,24 @@ function StartView({ onStart }: { onStart: () => void }) {
       <div className="panel">
         <h2>The rules of the pit</h2>
         <ul className="rogue-ruleslist">
-          <li>One hand per stop: 1 card at Circle 1, 10 at The Bottom, back to 1 at the last sphere.</li>
-          <li>Make your bid exactly to pass. Miss and you lose <b>grace</b> — at 0, the run ends.</li>
+          <li>
+            Every gate holds a demon with <b>health</b>. Hands of Oh Hell repeat at its table —
+            1 card at Circle 1, 10 at The Bottom — until one of you falls.
+          </li>
+          <li>
+            <b>Make your bid exactly</b> and you strike for <b>5 + bid</b> damage (and earn souls).
+            Miss and you take the blow instead. Bold bids cut deeper both ways.
+          </li>
+          <li>
+            At 0 HP, <b>grace</b> catches you: −1 grace, back to full health, and the demon keeps
+            its wounds. At 0 grace, the pit keeps you.
+          </li>
           <li>
             On hands of <b>4+ cards</b> the trump stays <b>face-down while you bid</b> — the
             demons can see it. Small hands play fair. Relics help.
           </li>
-          <li>Made bids earn <b>souls</b>; shops every third gate sell relics and grace.</li>
-          <li>Each table's demon warps one rule — it's shown before you play.</li>
+          <li>Souls buy relics and grace at shops every third gate.</li>
+          <li>Each demon warps one rule — it's shown before you play.</li>
           <li>You begin with a <b>gift</b>: one of three relics, yours to choose.</li>
         </ul>
         <button className="btn btn-primary" onClick={onStart}>
@@ -208,6 +238,8 @@ function MapView({
   const track = buildTrack(run.seed);
   const stop = track[run.stopIndex];
   const demon = DEMONS[stop.demonId];
+  const demonMaxHp = demonMaxHpFor(stop);
+  const wounded = run.demonHp < demonMaxHp;
   const canFerry = run.relics.includes('ferrymansCoin') && stop.region !== 'bottom';
 
   return (
@@ -225,9 +257,14 @@ function MapView({
         <p className="rogue-flavor">
           <b>{demon.name}.</b> {demon.flavor}
         </p>
+        <p className="rogue-flavor">
+          💀 {run.demonHp}/{demonMaxHp} HP{wounded && ' — it bleeds'}
+        </p>
         {stop.demonId !== 'imp' && <p className="rogue-quirk">⚠ {demon.quirk}</p>}
         <button className="btn btn-primary" onClick={onPlay}>
-          {stop.region === 'heaven' ? 'Ascend' : 'Descend'} — play the hand
+          {wounded
+            ? 'Fight on — the wounds hold'
+            : `${stop.region === 'heaven' ? 'Ascend' : 'Descend'} — join battle`}
         </button>
         {canFerry && (
           <button className="btn" onClick={onFerryman}>
@@ -394,7 +431,8 @@ function EndView({ run, onNewRun }: { run: RunState; onNewRun: () => void }) {
 function Hud({ run }: { run: RunState }) {
   return (
     <div className="rogue-hudbar">
-      <span className="rogue-hud">❤ {run.grace}/{run.maxGrace} grace</span>
+      <span className="rogue-hud">❤ {run.hp}/{run.maxHp} hp</span>
+      <span className="rogue-hud">🕊 {run.grace}/{run.maxGrace} grace</span>
       <span className="rogue-hud">✦ {run.souls} souls</span>
       <span className="rogue-hud">
         gate {Math.min(run.stopIndex + 1, STOP_COUNT)}/{STOP_COUNT}

@@ -16,6 +16,11 @@
   --card-black: #1c1c24;
 }
 
+html {
+  /* keep the layout width stable when banners change the page height */
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   margin: 0;
@@ -405,52 +410,71 @@ body {
   font-size: 38px !important;
 }
 
-/* court cards (J / Q / K) */
+/* court cards (J / Q / K): suit above and below a large letter, no frame */
 
 .card-court {
   position: absolute;
-  inset: 16% 20%;
-  border: 1.5px solid currentColor;
-  border-radius: 4px;
-  opacity: 0.92;
+  inset: 14% 18%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  opacity: 0.92;
   pointer-events: none;
 }
 
 .court-letter {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
+  line-height: 1;
   font-family: Georgia, 'Times New Roman', serif;
 }
 
 .card-sm .court-letter {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .card-lg .court-letter {
-  font-size: 30px;
+  font-size: 32px;
 }
 
 .court-glyph {
-  position: absolute;
-  font-size: 10px;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .card-sm .court-glyph {
-  font-size: 7px;
-}
-
-.court-top {
-  top: 2px;
-  left: 3px;
+  font-size: 8px;
 }
 
 .court-bottom {
-  bottom: 2px;
-  right: 3px;
   transform: rotate(180deg);
+}
+
+/* Small screens: shrink the big cards and loosen the fan so every card
+   keeps a tappable strip instead of hiding under its neighbor. */
+@media (max-width: 640px) {
+  .card-lg {
+    width: 60px;
+    height: 88px;
+  }
+
+  .card-lg .card-corner {
+    font-size: 13px;
+  }
+
+  .card-lg .pip {
+    font-size: 12px;
+  }
+
+  .card-lg .pip-ace {
+    font-size: 28px !important;
+  }
+
+  .hand-fan .card {
+    margin-left: -10px;
+  }
 }
 
 .card-clickable {
@@ -479,15 +503,26 @@ body {
 
 .hand-fan {
   display: flex;
-  justify-content: center;
-  padding-left: 24px;
   max-width: 100%;
   overflow-x: auto;
+  padding: 4px 12px;
+}
+
+/* Center when the fan fits; when it overflows, keep the first card reachable
+   instead of clipping it (a plain justify-content: center hides the left edge). */
+.hand-fan::before,
+.hand-fan::after {
+  content: '';
+  margin: auto;
 }
 
 .hand-fan .card {
   margin-left: -24px;
   animation: hand-in 0.3s ease-out backwards;
+}
+
+.hand-fan .card:first-of-type {
+  margin-left: 0;
 }
 
 @keyframes hand-in {
@@ -586,165 +621,6 @@ body {
   font-size: 1.1rem;
 }
 
-.score-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.score-table th,
-.score-table td {
-  padding: 7px 10px;
-  text-align: center;
-  border-bottom: 1px solid #2c3a33;
-}
-
-.score-table th {
-  color: var(--muted);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.score-table td:first-child,
-.score-table th:first-child {
-  text-align: left;
-}
-
-.row-you td {
-  background: rgba(242, 182, 50, 0.07);
-}
-
-.made-bid {
-  color: #6fd487;
-  font-weight: 700;
-}
-
-.missed-bid {
-  color: var(--danger);
-}
-
-.modal-wide {
-  max-width: 620px;
-}
-
-.score-scroll {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.score-history {
-  font-size: 0.88rem;
-}
-
-.score-history tfoot td {
-  border-top: 2px solid #3a4f44;
-  border-bottom: none;
-  color: var(--accent);
-}
-
-.hist-total {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 0.8em;
-  margin-left: 4px;
-}
-
-.board-toggle {
-  width: 100%;
-  max-width: 280px;
-}
-
-.board-name {
-  font-weight: 700;
-}
-
-.board-btn {
-  align-self: center;
-}
-
-.modal .hint {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-/* ---------- content pages (rules, privacy) ---------- */
-
-.content-page {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 12px 4px 48px;
-  line-height: 1.55;
-}
-
-.content-page .title {
-  font-size: 1.9rem;
-}
-
-.content-page section {
-  background: var(--panel);
-  border: 1px solid #2c3a33;
-  border-radius: 12px;
-  padding: 6px 20px 14px;
-  margin-top: 16px;
-}
-
-.content-page h2 {
-  color: var(--accent);
-  font-size: 1.15rem;
-  margin: 14px 0 4px;
-}
-
-.content-page h3 {
-  font-size: 1rem;
-  margin: 14px 0 4px;
-}
-
-.content-page p {
-  margin: 8px 0;
-}
-
-.content-page ul,
-.content-page ol {
-  margin: 8px 0;
-  padding-left: 22px;
-}
-
-.content-page li {
-  margin: 6px 0;
-}
-
-.content-page section a {
-  color: var(--accent);
-}
-
-.back-link {
-  display: inline-block;
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 0.9rem;
-  margin-bottom: 4px;
-}
-
-.back-link:hover {
-  color: var(--ink);
-}
-
-.page-footer {
-  margin-top: 28px;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.page-footer a {
-  color: var(--muted);
-  text-decoration: underline;
-}
-
-.page-footer a:hover {
-  color: var(--ink);
-}
-
 /* ---------- roguelite (The Descent) ---------- */
 
 /* Region palettes override the table's CSS variables wholesale. Placeholder
@@ -825,10 +701,64 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   text-align: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(242, 182, 50, 0.35);
+  border-radius: 999px;
+  padding: 4px 16px;
+  align-self: center;
+  max-width: fit-content;
+  margin: 0 auto;
 }
 
 .rogue-ledger {
   color: var(--ink);
+  border-color: rgba(232, 239, 233, 0.3);
+}
+
+/* battle health bars */
+
+.battle-bar {
+  display: flex;
+  gap: 10px;
+}
+
+.hp-block {
+  flex: 1;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+
+.hp-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hpbar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.hpbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.45s ease;
+}
+
+.hpbar-you {
+  background: linear-gradient(90deg, #3f9d58, #8ee08f);
+}
+
+.hpbar-demon {
+  background: linear-gradient(90deg, #7c1f1f, #d8574f);
 }
 
 .rogue-demon-tag {

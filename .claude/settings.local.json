@@ -7,7 +7,12 @@
       "PowerShell(Copy-Item *)",
       "PowerShell(npm run *)",
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git fetch *)",
+      "Bash(npx vitest *)",
+      "Bash(python *)",
+      "Bash(npm test *)",
+      "Bash(npx tsx *)"
     ]
   }
 }

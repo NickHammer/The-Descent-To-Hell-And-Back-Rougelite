@@ -38,7 +38,7 @@ export const DEMONS: Record<DemonId, DemonDef> = {
     id: 'usurer',
     name: 'The Usurer',
     flavor: 'All debts here compound.',
-    quirk: 'Missing your bid costs 2 grace at this table.',
+    quirk: 'Missed bids deal double damage to you at this table.',
     minStop: 6
   },
   adversary: {

@@ -8,7 +8,9 @@ export type RelicId =
   | 'graveLedger'
   | 'secondSoul'
   | 'crackedHalo'
-  | 'ferrymansCoin';
+  | 'ferrymansCoin'
+  | 'emberBrand'
+  | 'ashenShield';
 
 export type RelicTier = 'common' | 'uncommon' | 'rare';
 
@@ -52,7 +54,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
     id: 'crackedHalo',
     name: 'Cracked Halo',
     flavor: 'Still counts, mostly.',
-    effect: 'Missing your bid by exactly one costs no grace (but earns no souls).',
+    effect: 'Missing your bid by exactly one deals no damage to you — but none to the demon either.',
     tier: 'rare',
     cost: 18
   },
@@ -64,6 +66,22 @@ export const RELICS: Record<RelicId, RelicDef> = {
     tier: 'uncommon',
     cost: 15,
     consumable: true
+  },
+  emberBrand: {
+    id: 'emberBrand',
+    name: 'Ember Brand',
+    flavor: 'It remembers being a sword.',
+    effect: 'Made bids strike for +3 damage.',
+    tier: 'uncommon',
+    cost: 12
+  },
+  ashenShield: {
+    id: 'ashenShield',
+    name: 'Ashen Shield',
+    flavor: 'What has burned cannot burn again.',
+    effect: 'Missed bids deal 2 less damage to you (never below 1).',
+    tier: 'uncommon',
+    cost: 12
   }
 };
 

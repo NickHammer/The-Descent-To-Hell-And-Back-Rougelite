@@ -46,6 +46,9 @@ export interface LocalHand {
   result: { bid: number; taken: number } | null;
   bid: (b: number) => void;
   play: (cardId: string) => void;
+  /** collapse the timers for the rest of the hand (used once the bid is dead) */
+  hurry: () => void;
+  hurrying: boolean;
 }
 
 export function useLocalHand(stop: StopDef, playerName: string, seed: number): LocalHand {
@@ -54,6 +57,7 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
   const trumps = useRef(0);
   const shifted = useRef(false);
   const lastBid = useRef<{ seat: number; bid: number } | null>(null);
+  const fast = useRef(false);
   const [, setVersion] = useState(0);
 
   if (game.current === null) {
@@ -83,7 +87,8 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
     if (handOver) return;
 
     if (state.trickWinner !== null) {
-      const timer = window.setTimeout(() => {
+      const timer = window.setTimeout(
+        () => {
         collectTrick(state);
         shifted.current = false;
         // The Adversary shifts the trump every 3 collected tricks (if the hand goes on).
@@ -99,28 +104,33 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
           state.trumpCard = { ...state.trumpCard, suit, id: `shift-${suit}-${collected}` };
           shifted.current = true;
         }
-        bump();
-      }, TRICK_PAUSE_MS);
+          bump();
+        },
+        fast.current ? 130 : TRICK_PAUSE_MS
+      );
       return () => clearTimeout(timer);
     }
 
     if (state.turn > 0) {
-      const timer = window.setTimeout(() => {
-        const seat = state.turn;
-        if (seat <= 0) return;
-        if (state.phase === 'bidding') {
-          const demonBid = chooseBid(state, seat);
-          placeBid(state, seat, demonBid);
-          lastBid.current = { seat, bid: demonBid };
-        } else if (state.phase === 'playing') {
-          const card = chooseCard(state, seat);
-          if (card.suit === state.trumpCard!.suit) trumps.current += 1;
-          playCard(state, seat, card.id);
-          playSound('card');
-        }
-        if (state.trickWinner !== null) playSound('trick');
-        bump();
-      }, DEMON_THINK_MS);
+      const timer = window.setTimeout(
+        () => {
+          const seat = state.turn;
+          if (seat <= 0) return;
+          if (state.phase === 'bidding') {
+            const demonBid = chooseBid(state, seat);
+            placeBid(state, seat, demonBid);
+            lastBid.current = { seat, bid: demonBid };
+          } else if (state.phase === 'playing') {
+            const card = chooseCard(state, seat);
+            if (card.suit === state.trumpCard!.suit) trumps.current += 1;
+            playCard(state, seat, card.id);
+            if (!fast.current) playSound('card');
+          }
+          if (state.trickWinner !== null && !fast.current) playSound('trick');
+          bump();
+        },
+        fast.current ? 70 : DEMON_THINK_MS
+      );
       return () => clearTimeout(timer);
     }
 
@@ -155,7 +165,12 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
     lastBid: lastBid.current,
     result: handOver ? { bid: state.history[0].bids[0], taken: state.history[0].taken[0] } : null,
     bid,
-    play
+    play,
+    hurry: () => {
+      fast.current = true;
+      bump();
+    },
+    hurrying: fast.current
   };
 }
 

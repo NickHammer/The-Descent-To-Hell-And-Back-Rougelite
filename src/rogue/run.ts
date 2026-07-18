@@ -11,6 +11,19 @@ export const STOP_COUNT = 19;
 export const BOTTOM_INDEX = 9; // the 10-card boss stop
 export const HEAL_COST = 6;
 
+// Battle tuning. A gate is a fight: hands repeat until one side falls.
+export const PLAYER_MAX_HP = 12;
+export const HAND_DMG_BASE = 5; // made bid deals base+bid, missed bid takes base+bid
+export const BOSS_HP = 40;
+export const BOSS_BOUNTY = 8; // souls for felling the Adversary
+export const EMBER_BRAND_BONUS = 3;
+export const ASHEN_SHIELD_BLOCK = 2;
+
+/** Demon HP at a stop: deeper tables (bigger hands) take more killing. */
+export function demonMaxHpFor(stop: StopDef): number {
+  return stop.region === 'bottom' ? BOSS_HP : 8 + 2 * stop.handSize;
+}
+
 export type Region = 'hell' | 'bottom' | 'heaven';
 
 export interface StopDef {
@@ -30,12 +43,23 @@ export interface RunState {
   stopIndex: number; // current stop, 0..18
   grace: number;
   maxGrace: number;
+  hp: number; // battle health; refilled each battle and on respawn
+  maxHp: number;
+  demonHp: number; // the current gate's demon health
   souls: number;
   relics: RelicId[];
   attempts: number; // hands played this run (also salts per-hand deals)
   phase: RunPhase;
   shopOffers: RelicId[];
   log: string[];
+  /** How the most recent hand landed, for table feedback. */
+  lastHand: {
+    made: boolean;
+    dmgDealt: number;
+    dmgTaken: number;
+    respawned: boolean;
+    won: boolean;
+  } | null;
 }
 
 /** The 19-stop track, deterministic from the run seed. */
@@ -66,12 +90,16 @@ export function newRun(seed = Math.floor(Math.random() * 2 ** 31)): RunState {
     stopIndex: 0,
     grace: 3,
     maxGrace: 3,
+    hp: PLAYER_MAX_HP,
+    maxHp: PLAYER_MAX_HP,
+    demonHp: demonMaxHpFor(buildTrack(seed)[0]),
     souls: 0,
     relics: [],
     attempts: 0,
     phase: 'gift',
     shopOffers: giftOffers(seed),
-    log: ['You wake at the gate. Something has left you a gift.']
+    log: ['You wake at the gate. Something has left you a gift.'],
+    lastHand: null
   };
 }
 
@@ -114,9 +142,9 @@ function applyRelicEffects(run: RunState, id: RelicId): void {
   }
 }
 
-/** Souls earned for making a bid: bold bids pay more; the boss pays a bounty. */
-export function soulsForClear(bid: number, isBoss: boolean): number {
-  return 3 + bid + (isBoss ? 8 : 0);
+/** Souls earned for making a bid: bold bids pay more. */
+export function soulsForClear(bid: number): number {
+  return 3 + bid;
 }
 
 /**
@@ -129,9 +157,11 @@ export function isTrumpBlind(handSize: number): boolean {
 }
 
 /**
- * Apply the outcome of a played hand at the current stop.
- * Made bid → advance (into shop/won as appropriate). Missed → lose grace
- * (Usurer ×2; Cracked Halo forgives a miss-by-one) and retry the same stop.
+ * Apply the outcome of a played hand at the current stop's battle.
+ * Made bid → damage the demon (bid + base, Ember Brand adds); fell it to advance.
+ * Missed → take damage (bid + base; Usurer doubles, Ashen Shield blocks, Cracked
+ * Halo voids a miss-by-one both ways). At 0 HP, grace catches you: -1 grace,
+ * full HP, and the demon keeps its wounds. At 0 grace the pit keeps you.
  */
 export function resolveHand(
   run: RunState,
@@ -144,33 +174,67 @@ export function resolveHand(
   const made = outcome.bid === outcome.taken;
 
   if (made) {
-    const earned = soulsForClear(outcome.bid, stop.region === 'bottom');
+    const dmg =
+      HAND_DMG_BASE + outcome.bid + (run.relics.includes('emberBrand') ? EMBER_BRAND_BONUS : 0);
+    const earned = soulsForClear(outcome.bid);
+    next.demonHp -= dmg;
     next.souls += earned;
-    next.log.push(`${stop.label} cleared: bid ${outcome.bid}, took ${outcome.taken}. +${earned} souls.`);
-    return advance(next, track, stop);
+    if (next.demonHp <= 0) {
+      next.demonHp = 0;
+      if (stop.region === 'bottom') next.souls += BOSS_BOUNTY;
+      next.lastHand = { made, dmgDealt: dmg, dmgTaken: 0, respawned: false, won: true };
+      next.log.push(
+        `${stop.label} falls: bid ${outcome.bid} made, ${dmg} damage. +${earned}${
+          stop.region === 'bottom' ? ` souls and a ${BOSS_BOUNTY}-soul bounty` : ' souls'
+        }.`
+      );
+      return advance(next, track, stop);
+    }
+    next.lastHand = { made, dmgDealt: dmg, dmgTaken: 0, respawned: false, won: false };
+    next.log.push(
+      `Bid ${outcome.bid} made at ${stop.label}: ${dmg} damage, ${next.demonHp} HP left. +${earned} souls.`
+    );
+    return next;
   }
 
   const haloSaves =
     run.relics.includes('crackedHalo') && Math.abs(outcome.bid - outcome.taken) === 1;
   if (haloSaves) {
-    next.log.push(`Missed by one at ${stop.label} — the Cracked Halo holds. No grace lost.`);
+    next.lastHand = { made, dmgDealt: 0, dmgTaken: 0, respawned: false, won: false };
+    next.log.push(`Missed by one at ${stop.label} — the Cracked Halo holds. No blood drawn.`);
     return next;
   }
 
-  const cost = stop.demonId === 'usurer' ? 2 : 1;
-  next.grace -= cost;
-  next.log.push(
-    `Missed at ${stop.label}: bid ${outcome.bid}, took ${outcome.taken}. -${cost} grace.`
-  );
+  let dmg = HAND_DMG_BASE + outcome.bid;
+  if (stop.demonId === 'usurer') dmg *= 2;
+  if (run.relics.includes('ashenShield')) dmg = Math.max(1, dmg - ASHEN_SHIELD_BLOCK);
+  next.hp -= dmg;
+  if (next.hp > 0) {
+    next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: false, won: false };
+    next.log.push(
+      `Missed at ${stop.label}: bid ${outcome.bid}, took ${outcome.taken}. ${dmg} damage, ${next.hp} HP left.`
+    );
+    return next;
+  }
+
+  next.hp = 0;
+  next.grace -= 1;
   if (next.grace <= 0) {
     next.grace = 0;
     next.phase = 'dead';
-    next.log.push('Your last grace gutters out. The pit keeps you.');
+    next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: false, won: false };
+    next.log.push(`You fall at ${stop.label}. Your last grace gutters out. The pit keeps you.`);
+    return next;
   }
+  next.hp = next.maxHp;
+  next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: true, won: false };
+  next.log.push(
+    `You fall at ${stop.label} — grace catches you. -1 grace (${next.grace} left), and the fight goes on.`
+  );
   return next;
 }
 
-/** Move past `stop`: open a shop, finish the run, or step to the next stop. */
+/** Move past `stop`: open a shop, finish the run, or step to the next battle. */
 function advance(run: RunState, track: StopDef[], stop: StopDef): RunState {
   if (stop.index === STOP_COUNT - 1) {
     run.phase = 'won';
@@ -178,6 +242,8 @@ function advance(run: RunState, track: StopDef[], stop: StopDef): RunState {
     return run;
   }
   run.stopIndex = stop.index + 1;
+  run.hp = run.maxHp;
+  run.demonHp = demonMaxHpFor(track[run.stopIndex]);
   if (stop.shopAfter) {
     run.phase = 'shop';
     run.shopOffers = shopStock(run);

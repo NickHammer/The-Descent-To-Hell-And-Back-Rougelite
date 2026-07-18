@@ -16,12 +16,16 @@ Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
         └── THE BOTTOM: 10 cards, boss demon ──┘
 ```
 
-- **19 stops**, one hand of Oh Hell each: hand sizes climb 1→10 on the way down, then
-  shrink 10→1 on the way back up.
-- **Make your bid exactly to advance.** Miss it and you lose 1 **grace** and replay the
-  stop. Grace starts at 3; at 0 the run ends.
+- **19 stops**, each a **battle**: hand sizes climb 1→10 on the way down, then shrink
+  10→1 on the way back up, and hands of Oh Hell repeat at each gate until one side falls.
+- **Every demon has HP** (scaled by hand size; the boss has much more). Make your bid
+  exactly and you strike for **5 + bid** damage. Miss and you take **5 + bid** yourself.
+  Bold bids cut deeper both ways.
+- **You have 12 HP**, refilled at each new gate. At 0 HP, **grace** catches you: lose
+  1 grace, return at full health, and the demon keeps its wounds. Grace starts at 3;
+  at 0 the run ends.
 - **Souls** are the run currency: 3 + your bid per made bid (bold bids pay more), plus a
-  bounty for beating the boss. A **shop** opens every third stop — spend souls on relics
+  bounty for felling the boss. A **shop** opens every third stop — spend souls on relics
   or restore 1 grace.
 - **The gift at the gate**: every run opens with a choice of 1 of 3 relics, and an
   information relic is always among them.
@@ -39,7 +43,7 @@ Quirks are always shown before the hand.
 | Imp | None. A kind of innocence, around here. |
 | The Liar | Demons' bids stay hidden until the hand ends. |
 | The Hoarder | You can't see how many tricks the demons have taken. |
-| The Usurer | Missing your bid costs 2 grace at this table. |
+| The Usurer | Missed bids deal double damage to you at this table. |
 | The Adversary (boss) | The trump suit shifts every 3 tricks. |
 
 ### The relics
@@ -51,7 +55,9 @@ Information is the primary power axis; bid-tolerance is the rare tier.
 | Loaded Die | See the trump while bidding on deep hands (4+ cards). |
 | Grave Ledger | Running count of trumps played this hand. |
 | Second Soul | +1 max grace, and restores 1 grace when taken. |
-| Cracked Halo | Missing by exactly one costs no grace (but earns no souls). |
+| Ember Brand | Made bids strike for +3 damage. |
+| Ashen Shield | Missed bids deal 2 less damage to you (never below 1). |
+| Cracked Halo | Missing by exactly one deals no damage either way. |
 | Ferryman's Coin | Skip a stop outright (consumed; not past the Adversary). |
 
 The full design rationale — and the decisions behind it — lives in
