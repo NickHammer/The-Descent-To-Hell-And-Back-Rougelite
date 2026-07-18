@@ -5,7 +5,9 @@
       "PowerShell(npm test *)",
       "PowerShell(npm start *)",
       "PowerShell(Copy-Item *)",
-      "PowerShell(npm run *)"
+      "PowerShell(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
     ]
   }
 }

@@ -65,10 +65,16 @@ export function RunApp() {
           setInHand(false);
           update(resolveHand(run, track, outcome));
         }}
+        onQuit={() => {
+          if (window.confirm('Abandon this run and return to the gate? All progress is lost.')) {
+            setInHand(false);
+            setRun(null);
+          }
+        }}
       />
     );
   } else if (run.phase === 'gift') {
-    view = <GiftView run={run} onChange={update} />;
+    view = <GiftView run={run} onChange={update} onAbandon={() => setRun(null)} />;
   } else if (run.phase === 'shop') {
     view = <ShopView run={run} onChange={update} />;
   } else if (run.phase === 'dead' || run.phase === 'won') {
@@ -136,11 +142,13 @@ function Backdrop({ region, depth }: { region: Region; depth: number }) {
 function LazyHand({
   run,
   trackStop,
-  onDone
+  onDone,
+  onQuit
 }: {
   run: RunState;
   trackStop: ReturnType<typeof buildTrack>[number];
   onDone: (outcome: { bid: number; taken: number }) => void;
+  onQuit: () => void;
 }) {
   return (
     <HandView
@@ -152,6 +160,7 @@ function LazyHand({
       playerName={localStorage.getItem('thab_name') ?? 'You'}
       seed={(run.seed ^ Math.imul(run.attempts + 1, 2654435761)) >>> 0}
       onDone={onDone}
+      onQuit={onQuit}
     />
   );
 }
@@ -259,7 +268,15 @@ function MapView({
   );
 }
 
-function GiftView({ run, onChange }: { run: RunState; onChange: (r: RunState) => void }) {
+function GiftView({
+  run,
+  onChange,
+  onAbandon
+}: {
+  run: RunState;
+  onChange: (r: RunState) => void;
+  onAbandon: () => void;
+}) {
   return (
     <div className="home rogue-gift">
       <h1 className="title">A Gift at the Gate</h1>
@@ -282,6 +299,9 @@ function GiftView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
           );
         })}
       </div>
+      <button className="btn rogue-abandon" onClick={onAbandon}>
+        Turn back from the gate
+      </button>
     </div>
   );
 }

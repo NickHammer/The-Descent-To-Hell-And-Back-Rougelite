@@ -12,7 +12,8 @@ export function HandView({
   souls,
   playerName,
   seed,
-  onDone
+  onDone,
+  onQuit
 }: {
   stop: StopDef;
   relics: RelicId[];
@@ -21,6 +22,7 @@ export function HandView({
   playerName: string;
   seed: number;
   onDone: (outcome: { bid: number; taken: number }) => void;
+  onQuit: () => void;
 }) {
   const hand = useLocalHand(stop, playerName, seed);
   const { state } = hand;
@@ -54,6 +56,9 @@ export function HandView({
         <div className="topbar-right">
           <span className="rogue-hud">❤ {grace}</span>
           <span className="rogue-hud">✦ {souls}</span>
+          <button className="btn rogue-quit" onClick={onQuit}>
+            ✕ Quit
+          </button>
         </div>
       </header>
 
