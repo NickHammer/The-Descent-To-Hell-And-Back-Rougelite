@@ -14,6 +14,41 @@
   --card-face: #fdfbf4;
   --card-red: #c22b2b;
   --card-black: #1c1c24;
+  /* relic rarity */
+  --rarity-common: #4da3ff;
+  --rarity-uncommon: #b06dff;
+  --rarity-rare: #57d987;
+  --rarity-legendary: #ff7a3d;
+}
+
+/* rarity color carriers: any element with a tier-* class exposes --tier-color */
+.tier-common {
+  --tier-color: var(--rarity-common);
+}
+
+.tier-uncommon {
+  --tier-color: var(--rarity-uncommon);
+}
+
+.tier-rare {
+  --tier-color: var(--rarity-rare);
+}
+
+.tier-legendary {
+  --tier-color: var(--rarity-legendary);
+}
+
+.tier-chip {
+  color: var(--tier-color);
+  border: 1px solid color-mix(in srgb, var(--tier-color) 55%, transparent);
+  background: color-mix(in srgb, var(--tier-color) 12%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
 }
 
 html {
@@ -882,6 +917,13 @@ body {
 
 .rogue-offer:last-of-type {
   border-bottom: none;
+}
+
+/* rarity edge on offers */
+.rogue-offer[class*='tier-'] {
+  border-left: 3px solid var(--tier-color);
+  padding-left: 10px;
+  border-radius: 4px;
 }
 
 .rogue-card-back {

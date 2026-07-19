@@ -13,8 +13,9 @@ export function RelicTray({ relics }: { relics: RelicId[] }) {
       {open && (
         <div className="relic-drop">
           {relics.map((id, i) => (
-            <div key={`${id}-${i}`} className="rogue-flavor">
-              <b>{RELICS[id].name}</b> — {RELICS[id].effect}
+            <div key={`${id}-${i}`} className={`rogue-flavor tier-${RELICS[id].tier}`}>
+              <b>{RELICS[id].name}</b> <span className="tier-chip">{RELICS[id].tier}</span> —{' '}
+              {RELICS[id].effect}
             </div>
           ))}
         </div>

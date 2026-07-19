@@ -55,17 +55,20 @@ always shown before the hand, and both the quirk and the personality die with th
 
 Information is the primary power axis; bid-tolerance is the rare tier.
 
-| Relic | Effect |
-|---|---|
-| Loaded Die | See the trump while bidding on deep hands (4+ cards). |
-| Grave Ledger | Running count of trumps played this hand. |
-| Second Soul | +1 max grace, and restores 1 grace when taken. |
-| Ember Brand | Made bids strike for +3 damage. |
-| Ashen Shield | Missed bids deal 2 less damage to you (never below 1). |
-| 🥬 The Devil's Lettuce | Smoke curls from the backs of demons' high cards (Q, K, A). |
-| Trump Vision | Demons' trumps smolder through the backs of their cards. |
-| Cracked Halo | Missing by exactly one deals no damage either way. |
-| Ferryman's Coin | Skip a stop outright (consumed; not past the Adversary). |
+Rarity is color-coded in game: common **blue**, uncommon **purple**, rare **green**,
+legendary **orange**.
+
+| Relic | Rarity | Effect |
+|---|---|---|
+| Loaded Die | common | See the trump while bidding on deep hands (4+ cards). |
+| Grave Ledger | common | Running count of trumps played this hand. |
+| Second Soul | uncommon | +1 max grace, and restores 1 grace when taken. |
+| Ember Brand | uncommon | Made bids strike for +3 damage. |
+| Ashen Shield | uncommon | Missed bids deal 2 less damage to you (never below 1). |
+| Trump Vision | uncommon | Demons' trumps smolder through the backs of their cards. |
+| 🥬 The Devil's Lettuce | rare | Smoke curls from the backs of demons' high cards (Q, K, A). |
+| Ferryman's Coin | uncommon | Skip a stop outright (consumed; not past the Adversary). |
+| Cracked Halo | legendary | Missing by exactly one deals no damage either way. |
 
 The full design rationale — and the decisions behind it — lives in
 [`docs/ROGUELITE-CONCEPT.md`](docs/ROGUELITE-CONCEPT.md).

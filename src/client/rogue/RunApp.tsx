@@ -355,9 +355,9 @@ function GiftView({
         {run.shopOffers.map((id) => {
           const r = RELICS[id];
           return (
-            <div key={id} className="rogue-offer">
+            <div key={id} className={`rogue-offer tier-${r.tier}`}>
               <div>
-                <b>{r.name}</b> <span className="muted">({r.tier})</span>
+                <b>{r.name}</b> <span className="tier-chip">{r.tier}</span>
                 <div className="rogue-flavor">{r.effect}</div>
               </div>
               <button className="btn btn-primary" onClick={() => onChange(takeGift(run, id))}>
@@ -385,9 +385,9 @@ function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
         {run.shopOffers.map((id) => {
           const r = RELICS[id];
           return (
-            <div key={id} className="rogue-offer">
+            <div key={id} className={`rogue-offer tier-${r.tier}`}>
               <div>
-                <b>{r.name}</b> <span className="muted">({r.tier})</span>
+                <b>{r.name}</b> <span className="tier-chip">{r.tier}</span>
                 <div className="rogue-flavor">{r.effect}</div>
               </div>
               <button

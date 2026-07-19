@@ -14,7 +14,7 @@ export type RelicId =
   | 'devilsLettuce'
   | 'trumpVision';
 
-export type RelicTier = 'common' | 'uncommon' | 'rare';
+export type RelicTier = 'common' | 'uncommon' | 'rare' | 'legendary';
 
 export interface RelicDef {
   id: RelicId;
@@ -57,7 +57,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
     name: 'Cracked Halo',
     flavor: 'Still counts, mostly.',
     effect: 'Missing your bid by exactly one deals no damage to you — but none to the demon either.',
-    tier: 'rare',
+    tier: 'legendary',
     cost: 18
   },
   ferrymansCoin: {
