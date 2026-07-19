@@ -86,6 +86,7 @@ export function RunApp() {
             setRun(null);
           }
         }}
+        devWin={() => devClearGate(run, track)}
       />
     );
   } else if (run.phase === 'gift') {
@@ -101,7 +102,6 @@ export function RunApp() {
         onPlay={() => setInHand(true)}
         onFerryman={() => update(useFerrymansCoin(run, track))}
         onAbandon={() => setRun(null)}
-        onDevWin={() => update(devClearGate(run, track))}
       />
     );
   }
@@ -160,13 +160,15 @@ function LazyHand({
   trackStop,
   resolve,
   onContinue,
-  onQuit
+  onQuit,
+  devWin
 }: {
   run: RunState;
   trackStop: ReturnType<typeof buildTrack>[number];
   resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
   onContinue: (resolved: RunState) => void;
   onQuit: () => void;
+  devWin: () => RunState;
 }) {
   return (
     <HandView
@@ -184,6 +186,7 @@ function LazyHand({
       resolve={resolve}
       onContinue={onContinue}
       onQuit={onQuit}
+      devWin={devWin}
     />
   );
 }
@@ -236,14 +239,12 @@ function MapView({
   run,
   onPlay,
   onFerryman,
-  onAbandon,
-  onDevWin
+  onAbandon
 }: {
   run: RunState;
   onPlay: () => void;
   onFerryman: () => void;
   onAbandon: () => void;
-  onDevWin: () => void;
 }) {
   const track = buildTrack(run.seed);
   const stop = track[run.stopIndex];
@@ -330,10 +331,6 @@ function MapView({
 
       <button className="btn rogue-abandon" onClick={onAbandon}>
         Abandon run
-      </button>
-      {/* TEMPORARY dev control: preview run progression without playing hands */}
-      <button className="btn rogue-abandon rogue-dev" onClick={onDevWin}>
-        ⚙ Auto-win this gate (dev)
       </button>
     </div>
   );

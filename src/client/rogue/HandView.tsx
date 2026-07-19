@@ -20,7 +20,8 @@ export function HandView({
   seed,
   resolve,
   onContinue,
-  onQuit
+  onQuit,
+  devWin
 }: {
   stop: StopDef;
   relics: RelicId[];
@@ -36,7 +37,10 @@ export function HandView({
   resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
   onContinue: (resolved: RunState) => void;
   onQuit: () => void;
+  /** TEMPORARY dev shortcut: the gate resolved as if every demon fell */
+  devWin: () => RunState;
 }) {
+  const [devReport, setDevReport] = useState<RunState | null>(null);
   const hand = useLocalHand(stop, demonHps, playerName, seed);
   const { state } = hand;
   const demon = DEMONS[stop.demonId];
@@ -93,6 +97,9 @@ export function HandView({
         <div className="topbar-right">
           <span className="rogue-hud">🕊 {grace}</span>
           <span className="rogue-hud">✦ {souls}</span>
+          <button className="btn rogue-quit rogue-dev" onClick={() => setDevReport(devWin())}>
+            ⚙ Win
+          </button>
           <button className="btn rogue-quit" onClick={onQuit}>
             ✕ Quit
           </button>
@@ -297,7 +304,20 @@ export function HandView({
         </div>
       </div>
 
-      {hand.result && (
+      {devReport && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2>⚙ The gate yields</h2>
+            <p className="winner-line">
+              Every demon at {stop.label} falls where it sits. (Dev shortcut.)
+            </p>
+            <button className="btn btn-primary" onClick={() => onContinue(devReport)}>
+              Onward
+            </button>
+          </div>
+        </div>
+      )}
+      {!devReport && hand.result && (
         <BattleReport
           outcome={hand.result}
           resolve={resolve}
