@@ -6,16 +6,21 @@ import { mulberry32 } from './rng.js';
 import {
   ASHEN_SHIELD_BLOCK,
   BOSS_BOUNTY,
+  BOSS_HP,
+  FELL_HEAL,
   BOTTOM_INDEX,
   buildTrack,
   buyHeal,
   buyRelic,
-  demonMaxHpFor,
+  demonMaxHpsFor,
   EMBER_BRAND_BONUS,
   giftOffers,
   HAND_DMG_BASE,
   isTrumpBlind,
+  devClearGate,
+  leadAlive,
   leaveShop,
+  missDamage,
   newRun,
   PLAYER_MAX_HP,
   resolveHand,
@@ -60,45 +65,74 @@ describe('track', () => {
   });
 });
 
+describe('demon HP split', () => {
+  it('preserves table totals, lead-heavy', () => {
+    const track = buildTrack(3);
+    for (const stop of track) {
+      const hps = demonMaxHpsFor(stop);
+      const total = stop.region === 'bottom' ? BOSS_HP : 6 + Math.round(1.5 * stop.handSize);
+      expect(hps.length).toBe(stop.demonCount);
+      expect(hps.reduce((a, b) => a + b, 0)).toBe(total);
+      expect(hps[0]).toBe(Math.ceil(total / 2));
+      for (const hp of hps) expect(hp).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('battle resolution', () => {
   const track = buildTrack(7);
 
-  it('made bid damages the demon and pays souls, staying in the battle', () => {
-    const run = startedRun(7); // circle 1: demon HP 10
-    const next = resolveHand(run, track, { bid: 1, taken: 1 });
-    expect(next.stopIndex).toBe(0);
-    expect(next.demonHp).toBe(demonMaxHpFor(track[0]) - (HAND_DMG_BASE + 1));
+  it('made bid strikes only the chosen demon, pays souls, and a kill feeds you', () => {
+    const run: RunState = { ...startedRun(7), hp: 5 }; // circle 1: [4, 4]
+    const next = resolveHand(run, track, { bid: 1, taken: 1, target: 1 });
+    expect(next.demonHps[1]).toBe(0); // 6 damage overwhelms 4, no spill
+    expect(next.demonHps[0]).toBe(run.demonHps[0]);
     expect(next.souls).toBe(soulsForClear(1));
+    expect(next.hp).toBe(5 + FELL_HEAL);
     expect(next.phase).toBe('map');
-    expect(next.attempts).toBe(1);
-    expect(next.lastHand).toMatchObject({ made: true, won: false });
+    expect(next.stopIndex).toBe(0); // lead still stands
+    expect(next.lastHand).toMatchObject({ made: true, won: false, felled: true });
   });
 
-  it('felling the demon advances and refills both sides', () => {
-    const run: RunState = { ...startedRun(7), demonHp: 3 };
-    const next = resolveHand(run, track, { bid: 0, taken: 0 });
+  it('requires a living target for a made bid', () => {
+    const run = startedRun(7);
+    expect(() => resolveHand(run, track, { bid: 0, taken: 0 })).toThrow('living demon');
+    const halfDead: RunState = { ...run, demonHps: [5, 0] };
+    expect(() => resolveHand(halfDead, track, { bid: 0, taken: 0, target: 1 })).toThrow(
+      'living demon'
+    );
+  });
+
+  it('clearing the last demon advances and refills both sides', () => {
+    const run: RunState = { ...startedRun(7), demonHps: [3, 0] };
+    const next = resolveHand(run, track, { bid: 0, taken: 0, target: 0 });
     expect(next.stopIndex).toBe(1);
-    expect(next.demonHp).toBe(demonMaxHpFor(track[1]));
+    expect(next.demonHps).toEqual(demonMaxHpsFor(track[1]));
     expect(next.hp).toBe(next.maxHp);
     expect(next.lastHand).toMatchObject({ won: true });
   });
 
-  it('missed bid damages the player and the battle continues', () => {
-    const run = startedRun(7);
+  it('missed bid damages the player, scaled by the demons still standing', () => {
+    const run = startedRun(7); // 2 living
     const next = resolveHand(run, track, { bid: 1, taken: 0 });
     expect(next.stopIndex).toBe(0);
-    expect(next.hp).toBe(PLAYER_MAX_HP - (HAND_DMG_BASE + 1));
+    expect(next.hp).toBe(PLAYER_MAX_HP - missDamage(2, 1));
     expect(next.grace).toBe(3);
     expect(next.phase).toBe('map');
+
+    // heads-up, the same miss hits softer
+    const thinned: RunState = { ...startedRun(7), demonHps: [4, 0] };
+    const soft = resolveHand(thinned, track, { bid: 1, taken: 0 });
+    expect(soft.hp).toBe(PLAYER_MAX_HP - missDamage(1, 1));
+    expect(missDamage(1, 1)).toBeLessThan(missDamage(2, 1));
   });
 
-  it('falling to 0 HP costs a grace, respawns at full HP, and the demon keeps its wounds', () => {
-    const run: RunState = { ...startedRun(7), hp: 2, demonHp: 4 };
+  it('falling to 0 HP costs a grace, respawns at full HP, and the demons keep their wounds', () => {
+    const run: RunState = { ...startedRun(7), hp: 2, demonHps: [4, 2] };
     const next = resolveHand(run, track, { bid: 1, taken: 3 });
     expect(next.grace).toBe(2);
     expect(next.hp).toBe(next.maxHp);
-    expect(next.demonHp).toBe(4);
-    expect(next.stopIndex).toBe(0);
+    expect(next.demonHps).toEqual([4, 2]);
     expect(next.phase).toBe('map');
     expect(next.lastHand).toMatchObject({ respawned: true });
   });
@@ -111,58 +145,66 @@ describe('battle resolution', () => {
     expect(run.hp).toBe(0);
   });
 
-  it('the usurer doubles damage taken', () => {
-    const run: RunState = { ...startedRun(7), stopIndex: 6, hp: PLAYER_MAX_HP };
+  it('the usurer doubles damage taken only while it lives', () => {
     const usurerTrack: StopDef[] = track.map((s, i) =>
       i === 6 ? { ...s, demonId: 'usurer' as const } : s
     );
+    const run: RunState = { ...startedRun(7), stopIndex: 6, demonHps: [8, 4, 4], hp: PLAYER_MAX_HP };
+    expect(leadAlive(run)).toBe(true);
     const next = resolveHand(run, usurerTrack, { bid: 2, taken: 4 });
-    // 2 × (5 + 2) = 14 overwhelms 12 HP: grace catches the fall
-    expect(next.lastHand?.dmgTaken).toBe(2 * (HAND_DMG_BASE + 2));
+    // 2 × (2 + 3 + 2) = 14 overwhelms 14 HP: grace catches the fall
+    expect(next.lastHand?.dmgTaken).toBe(2 * missDamage(3, 2));
     expect(next.lastHand?.respawned).toBe(true);
-    expect(next.grace).toBe(2);
-    expect(next.hp).toBe(next.maxHp);
+
+    const leadDead: RunState = {
+      ...startedRun(7),
+      stopIndex: 6,
+      demonHps: [0, 5, 5],
+      hp: PLAYER_MAX_HP
+    };
+    const fair = resolveHand(leadDead, usurerTrack, { bid: 2, taken: 4 });
+    expect(fair.lastHand?.dmgTaken).toBe(missDamage(2, 2));
   });
 
   it('cracked halo voids a miss-by-one in both directions', () => {
     const run: RunState = { ...startedRun(7), relics: ['crackedHalo'] };
     const next = resolveHand(run, track, { bid: 1, taken: 0 });
     expect(next.hp).toBe(PLAYER_MAX_HP);
-    expect(next.demonHp).toBe(run.demonHp);
+    expect(next.demonHps).toEqual(run.demonHps);
     expect(next.souls).toBe(0);
     // a miss by two still hurts
     const worse = resolveHand(run, track, { bid: 1, taken: 3 });
-    expect(worse.hp).toBe(PLAYER_MAX_HP - (HAND_DMG_BASE + 1));
+    expect(worse.hp).toBe(PLAYER_MAX_HP - missDamage(2, 1));
   });
 
   it('ember brand adds damage dealt; ashen shield blocks damage taken', () => {
-    const armed: RunState = { ...startedRun(7), relics: ['emberBrand'], demonHp: 30 };
-    const struck = resolveHand(armed, track, { bid: 1, taken: 1 });
-    expect(struck.demonHp).toBe(30 - (HAND_DMG_BASE + 1 + EMBER_BRAND_BONUS));
+    const armed: RunState = { ...startedRun(7), relics: ['emberBrand'], demonHps: [30, 5] };
+    const struck = resolveHand(armed, track, { bid: 1, taken: 1, target: 0 });
+    expect(struck.demonHps[0]).toBe(30 - (HAND_DMG_BASE + 1 + EMBER_BRAND_BONUS));
 
     const shielded: RunState = { ...startedRun(7), relics: ['ashenShield'] };
     const hit = resolveHand(shielded, track, { bid: 1, taken: 0 });
-    expect(hit.hp).toBe(PLAYER_MAX_HP - (HAND_DMG_BASE + 1 - ASHEN_SHIELD_BLOCK));
+    expect(hit.hp).toBe(PLAYER_MAX_HP - (missDamage(2, 1) - ASHEN_SHIELD_BLOCK));
   });
 
-  it('pays the boss bounty at the bottom', () => {
-    const run: RunState = { ...startedRun(7), stopIndex: BOTTOM_INDEX, demonHp: 2 };
-    const next = resolveHand(run, track, { bid: 3, taken: 3 });
+  it('pays the boss bounty when the bottom is cleared', () => {
+    const run: RunState = { ...startedRun(7), stopIndex: BOTTOM_INDEX, demonHps: [2, 0, 0] };
+    const next = resolveHand(run, track, { bid: 3, taken: 3, target: 0 });
     expect(next.souls).toBe(soulsForClear(3) + BOSS_BOUNTY);
     expect(next.stopIndex).toBe(BOTTOM_INDEX + 1);
   });
 
   it('opens a shop after stop 2 and wins after the last stop', () => {
-    let run: RunState = { ...startedRun(7), stopIndex: 2, demonHp: 1 };
-    run = resolveHand(run, track, { bid: 0, taken: 0 });
+    let run: RunState = { ...startedRun(7), stopIndex: 2, demonHps: [1, 0] };
+    run = resolveHand(run, track, { bid: 0, taken: 0, target: 0 });
     expect(run.phase).toBe('shop');
     expect(run.shopOffers.length).toBeGreaterThan(0);
     run = leaveShop(run);
     expect(run.phase).toBe('map');
     expect(run.stopIndex).toBe(3);
 
-    let last: RunState = { ...startedRun(7), stopIndex: STOP_COUNT - 1, demonHp: 1 };
-    last = resolveHand(last, track, { bid: 1, taken: 1 });
+    let last: RunState = { ...startedRun(7), stopIndex: STOP_COUNT - 1, demonHps: [1, 0, 0] };
+    last = resolveHand(last, track, { bid: 1, taken: 1, target: 0 });
     expect(last.phase).toBe('won');
   });
 });
@@ -171,8 +213,8 @@ describe('shop', () => {
   const track = buildTrack(11);
 
   function atShop(souls: number): RunState {
-    let run: RunState = { ...startedRun(11), stopIndex: 2, souls, demonHp: 1 };
-    run = resolveHand(run, track, { bid: 0, taken: 0 });
+    let run: RunState = { ...startedRun(11), stopIndex: 2, souls, demonHps: [1, 0] };
+    run = resolveHand(run, track, { bid: 0, taken: 0, target: 0 });
     expect(run.phase).toBe('shop');
     return run;
   }
@@ -243,6 +285,25 @@ describe('the gift at the gate', () => {
   });
 });
 
+describe('dev auto-win', () => {
+  const track = buildTrack(5);
+
+  it('clears the gate through the normal advance flow', () => {
+    let run = startedRun(5);
+    run = devClearGate(run, track);
+    expect(run.stopIndex).toBe(1);
+    expect(run.demonHps).toEqual(demonMaxHpsFor(track[1]));
+
+    const atBottom: RunState = { ...startedRun(5), stopIndex: BOTTOM_INDEX };
+    const past = devClearGate(atBottom, track);
+    expect(past.souls).toBe(BOSS_BOUNTY);
+    expect(past.stopIndex).toBe(BOTTOM_INDEX + 1);
+
+    const dead: RunState = { ...startedRun(5), phase: 'dead' };
+    expect(() => devClearGate(dead, track)).toThrow();
+  });
+});
+
 describe("ferryman's coin", () => {
   const track = buildTrack(5);
 
@@ -260,9 +321,9 @@ describe("ferryman's coin", () => {
 
 describe('full runs (headless)', () => {
   /** Play one hand at a stop exactly the way the client driver does. */
-  function playStop(stop: StopDef, seed: number): { bid: number; taken: number } {
+  function playStop(stop: StopDef, livingDemons: number, seed: number): { bid: number; taken: number } {
     const rng = mulberry32(seed);
-    const seatCount = stop.demonCount + 1;
+    const seatCount = livingDemons + 1;
     const players: PlayerInfo[] = Array.from({ length: seatCount }, (_, i) => ({
       name: i === 0 ? 'You' : `Demon ${i}`,
       isBot: i > 0,
@@ -291,8 +352,14 @@ describe('full runs (headless)', () => {
     run = takeGift(run, run.shopOffers[0]);
     let guard = 0;
     while (run.phase === 'map' && guard++ < 300) {
-      const outcome = playStop(track[run.stopIndex], seed * 1000 + run.attempts);
-      run = resolveHand(run, track, outcome);
+      const living = run.demonHps.filter((hp) => hp > 0).length;
+      const outcome = playStop(track[run.stopIndex], living, seed * 1000 + run.attempts);
+      // strike the weakest living demon, the way a pragmatic player would
+      let target = -1;
+      run.demonHps.forEach((hp, i) => {
+        if (hp > 0 && (target === -1 || hp < run.demonHps[target])) target = i;
+      });
+      run = resolveHand(run, track, { ...outcome, target });
       if (run.phase === 'shop') {
         // buy greedily, then move on
         for (const offer of run.shopOffers.slice()) {

@@ -3,7 +3,7 @@
  * heaven, one hand of Oh Hell per stop. Pure logic — no DOM, no timers — so it
  * is unit-testable and the whole run can live client-side.
  */
-import { DemonId, demonPool } from './demons.js';
+import { DemonId, demonPool, rosterFor } from './demons.js';
 import { ALL_RELIC_IDS, RELICS, RelicId } from './relics.js';
 import { mulberry32, pick } from './rng.js';
 
@@ -12,16 +12,38 @@ export const BOTTOM_INDEX = 9; // the 10-card boss stop
 export const HEAL_COST = 6;
 
 // Battle tuning. A gate is a fight: hands repeat until one side falls.
-export const PLAYER_MAX_HP = 12;
-export const HAND_DMG_BASE = 5; // made bid deals base+bid, missed bid takes base+bid
-export const BOSS_HP = 40;
+export const PLAYER_MAX_HP = 14;
+export const HAND_DMG_BASE = 5; // a made bid strikes your target for base + bid
+export const MISS_DMG_BASE = 2; // a miss takes base + living demons (max 3) + bid
+export const BOSS_HP = 30;
 export const BOSS_BOUNTY = 8; // souls for felling the Adversary
 export const EMBER_BRAND_BONUS = 3;
 export const ASHEN_SHIELD_BLOCK = 2;
+/** HP restored when a demon falls: a bite of its soul steadies you. */
+export const FELL_HEAL = 2;
 
-/** Demon HP at a stop: deeper tables (bigger hands) take more killing. */
-export function demonMaxHpFor(stop: StopDef): number {
-  return stop.region === 'bottom' ? BOSS_HP : 8 + 2 * stop.handSize;
+/** A thinner table hits softer: the blow scales with the demons still standing. */
+export function missDamage(livingDemons: number, bid: number): number {
+  return MISS_DMG_BASE + Math.min(3, livingDemons) + bid;
+}
+
+/**
+ * Per-demon HP at a stop. The table total is unchanged (deeper tables take
+ * more killing); the lead demon carries half of it, minions split the rest.
+ */
+export function demonMaxHpsFor(stop: StopDef): number[] {
+  const total = stop.region === 'bottom' ? BOSS_HP : 6 + Math.round(1.5 * stop.handSize);
+  const lead = Math.ceil(total / 2);
+  const minionCount = stop.demonCount - 1;
+  const rest = total - lead;
+  const base = Math.floor(rest / minionCount);
+  const spare = rest - base * minionCount;
+  return [lead, ...Array.from({ length: minionCount }, (_, i) => base + (i < spare ? 1 : 0))];
+}
+
+/** The lead demon owns the table's quirk; it dies with them. */
+export function leadAlive(run: RunState): boolean {
+  return run.demonHps[0] > 0;
 }
 
 export type Region = 'hell' | 'bottom' | 'heaven';
@@ -45,7 +67,8 @@ export interface RunState {
   maxGrace: number;
   hp: number; // battle health; refilled each battle and on respawn
   maxHp: number;
-  demonHp: number; // the current gate's demon health
+  /** the current gate's demons, lead first; 0 = dead and gone from the table */
+  demonHps: number[];
   souls: number;
   relics: RelicId[];
   attempts: number; // hands played this run (also salts per-hand deals)
@@ -59,6 +82,9 @@ export interface RunState {
     dmgTaken: number;
     respawned: boolean;
     won: boolean;
+    /** who the blow landed on, and whether it killed them */
+    targetName?: string;
+    felled?: boolean;
   } | null;
 }
 
@@ -92,7 +118,7 @@ export function newRun(seed = Math.floor(Math.random() * 2 ** 31)): RunState {
     maxGrace: 3,
     hp: PLAYER_MAX_HP,
     maxHp: PLAYER_MAX_HP,
-    demonHp: demonMaxHpFor(buildTrack(seed)[0]),
+    demonHps: demonMaxHpsFor(buildTrack(seed)[0]),
     souls: 0,
     relics: [],
     attempts: 0,
@@ -158,42 +184,61 @@ export function isTrumpBlind(handSize: number): boolean {
 
 /**
  * Apply the outcome of a played hand at the current stop's battle.
- * Made bid → damage the demon (bid + base, Ember Brand adds); fell it to advance.
- * Missed → take damage (bid + base; Usurer doubles, Ashen Shield blocks, Cracked
- * Halo voids a miss-by-one both ways). At 0 HP, grace catches you: -1 grace,
- * full HP, and the demon keeps its wounds. At 0 grace the pit keeps you.
+ * Made bid → strike a chosen living demon (bid + base, Ember Brand adds); fell
+ * it and it leaves the table. The gate clears when every demon is down.
+ * Missed → take damage (bid + base; the Usurer doubles it while it lives,
+ * Ashen Shield blocks, Cracked Halo voids a miss-by-one both ways). At 0 HP,
+ * grace catches you: -1 grace, full HP, and the demons keep their wounds.
+ * At 0 grace the pit keeps you.
  */
 export function resolveHand(
   run: RunState,
   track: StopDef[],
-  outcome: { bid: number; taken: number }
+  outcome: { bid: number; taken: number; target?: number }
 ): RunState {
   if (run.phase !== 'map') throw new Error(`Cannot resolve a hand during ${run.phase}`);
   const stop = track[run.stopIndex];
-  const next: RunState = { ...run, attempts: run.attempts + 1, log: run.log.slice() };
+  const next: RunState = {
+    ...run,
+    demonHps: run.demonHps.slice(),
+    attempts: run.attempts + 1,
+    log: run.log.slice()
+  };
   const made = outcome.bid === outcome.taken;
 
   if (made) {
+    const target = outcome.target;
+    if (target == null || run.demonHps[target] === undefined || run.demonHps[target] <= 0) {
+      throw new Error('A made bid must strike a living demon');
+    }
+    const roster = rosterFor(stop);
+    const targetName = roster[target].name;
     const dmg =
       HAND_DMG_BASE + outcome.bid + (run.relics.includes('emberBrand') ? EMBER_BRAND_BONUS : 0);
     const earned = soulsForClear(outcome.bid);
-    next.demonHp -= dmg;
+    next.demonHps[target] = Math.max(0, next.demonHps[target] - dmg);
     next.souls += earned;
-    if (next.demonHp <= 0) {
-      next.demonHp = 0;
+    const felled = next.demonHps[target] === 0;
+    if (felled) next.hp = Math.min(next.maxHp, next.hp + FELL_HEAL);
+    const won = next.demonHps.every((hp) => hp === 0);
+    next.lastHand = { made, dmgDealt: dmg, dmgTaken: 0, respawned: false, won, targetName, felled };
+    if (won) {
       if (stop.region === 'bottom') next.souls += BOSS_BOUNTY;
-      next.lastHand = { made, dmgDealt: dmg, dmgTaken: 0, respawned: false, won: true };
       next.log.push(
-        `${stop.label} falls: bid ${outcome.bid} made, ${dmg} damage. +${earned}${
+        `${targetName} falls, and ${stop.label} with it: ${dmg} damage. +${earned}${
           stop.region === 'bottom' ? ` souls and a ${BOSS_BOUNTY}-soul bounty` : ' souls'
         }.`
       );
       return advance(next, track, stop);
     }
-    next.lastHand = { made, dmgDealt: dmg, dmgTaken: 0, respawned: false, won: false };
     next.log.push(
-      `Bid ${outcome.bid} made at ${stop.label}: ${dmg} damage, ${next.demonHp} HP left. +${earned} souls.`
+      felled
+        ? `${targetName} falls at ${stop.label}: ${dmg} damage. It leaves the table. +${earned} souls, +${FELL_HEAL} HP.`
+        : `${targetName} takes ${dmg} at ${stop.label} (${next.demonHps[target]} HP left). +${earned} souls.`
     );
+    if (felled && target === 0) {
+      next.log.push(`The table's master is slain — its rule dies with it.`);
+    }
     return next;
   }
 
@@ -205,8 +250,9 @@ export function resolveHand(
     return next;
   }
 
-  let dmg = HAND_DMG_BASE + outcome.bid;
-  if (stop.demonId === 'usurer') dmg *= 2;
+  const living = run.demonHps.filter((hp) => hp > 0).length;
+  let dmg = missDamage(living, outcome.bid);
+  if (stop.demonId === 'usurer' && leadAlive(run)) dmg *= 2;
   if (run.relics.includes('ashenShield')) dmg = Math.max(1, dmg - ASHEN_SHIELD_BLOCK);
   next.hp -= dmg;
   if (next.hp > 0) {
@@ -243,7 +289,7 @@ function advance(run: RunState, track: StopDef[], stop: StopDef): RunState {
   }
   run.stopIndex = stop.index + 1;
   run.hp = run.maxHp;
-  run.demonHp = demonMaxHpFor(track[run.stopIndex]);
+  run.demonHps = demonMaxHpsFor(track[run.stopIndex]);
   if (stop.shopAfter) {
     run.phase = 'shop';
     run.shopOffers = shopStock(run);
@@ -297,6 +343,19 @@ export function buyHeal(run: RunState): RunState {
 export function leaveShop(run: RunState): RunState {
   if (run.phase !== 'shop') throw new Error('No shop here');
   return { ...run, phase: 'map', shopOffers: [] };
+}
+
+/** Dev shortcut: clear the current gate as if every demon fell. TEMPORARY. */
+export function devClearGate(run: RunState, track: StopDef[]): RunState {
+  if (run.phase !== 'map') throw new Error('Can only clear a gate from the map');
+  const stop = track[run.stopIndex];
+  const next: RunState = {
+    ...run,
+    demonHps: run.demonHps.map(() => 0),
+    log: [...run.log, `⚙ ${stop.label} waved through (dev).`]
+  };
+  if (stop.region === 'bottom') next.souls += BOSS_BOUNTY;
+  return advance(next, track, stop);
 }
 
 /** Ferryman's Coin: skip the current stop. Not past the Adversary. */

@@ -3,14 +3,15 @@
  * lives in localStorage, hands are played by useLocalHand against ai.ts demons.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { DEMONS } from '../../rogue/demons.js';
+import { DEMONS, rosterFor } from '../../rogue/demons.js';
 import { RELICS, RelicId } from '../../rogue/relics.js';
 import {
   BOTTOM_INDEX,
   buildTrack,
   buyHeal,
   buyRelic,
-  demonMaxHpFor,
+  demonMaxHpsFor,
+  devClearGate,
   HEAL_COST,
   leaveShop,
   newRun,
@@ -23,6 +24,7 @@ import {
 } from '../../rogue/run.js';
 import { play as playSound } from '../sounds.js';
 import { HandView } from './HandView.js';
+import { RelicTray } from './RelicTray.js';
 
 const SAVE_KEY = 'thab_rogue_run';
 
@@ -34,9 +36,9 @@ function loadRun(): RunState | null {
     const valid =
       typeof run.seed === 'number' &&
       typeof run.stopIndex === 'number' &&
-      // pre-battle-system saves lack HP; those runs can't continue
+      // saves from before per-demon battles can't continue
       typeof run.hp === 'number' &&
-      typeof run.demonHp === 'number';
+      Array.isArray(run.demonHps);
     if (!valid) return null;
     run.lastHand ??= null;
     return run;
@@ -99,6 +101,7 @@ export function RunApp() {
         onPlay={() => setInHand(true)}
         onFerryman={() => update(useFerrymansCoin(run, track))}
         onAbandon={() => setRun(null)}
+        onDevWin={() => update(devClearGate(run, track))}
       />
     );
   }
@@ -161,7 +164,7 @@ function LazyHand({
 }: {
   run: RunState;
   trackStop: ReturnType<typeof buildTrack>[number];
-  resolve: (outcome: { bid: number; taken: number }) => RunState;
+  resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
   onContinue: (resolved: RunState) => void;
   onQuit: () => void;
 }) {
@@ -172,8 +175,8 @@ function LazyHand({
       relics={run.relics}
       hp={run.hp}
       maxHp={run.maxHp}
-      demonHp={run.demonHp}
-      demonMaxHp={demonMaxHpFor(trackStop)}
+      demonHps={run.demonHps}
+      demonMaxHps={demonMaxHpsFor(trackStop)}
       grace={run.grace}
       souls={run.souls}
       playerName={localStorage.getItem('thab_name') ?? 'You'}
@@ -197,12 +200,17 @@ function StartView({ onStart }: { onStart: () => void }) {
         <h2>The rules of the pit</h2>
         <ul className="rogue-ruleslist">
           <li>
-            Every gate holds a demon with <b>health</b>. Hands of Oh Hell repeat at its table —
-            1 card at Circle 1, 10 at The Bottom — until one of you falls.
+            Every gate holds a table of demons, each with its own <b>health</b>. Hands of Oh Hell
+            repeat — 1 card at Circle 1, 10 at The Bottom — until one side falls.
           </li>
           <li>
-            <b>Make your bid exactly</b> and you strike for <b>5 + bid</b> damage (and earn souls).
-            Miss and you take the blow instead. Bold bids cut deeper both ways.
+            <b>Make your bid exactly</b> and you strike <b>a demon of your choosing</b> for{' '}
+            <b>5 + bid</b> damage (and earn souls). Slain demons leave the table — a bite of
+            their soul heals you — and the lead's quirk dies with it.
+          </li>
+          <li>
+            <b>Miss</b> and the table strikes back, harder the more demons still stand and the
+            bolder your bid.
           </li>
           <li>
             At 0 HP, <b>grace</b> catches you: −1 grace, back to full health, and the demon keeps
@@ -228,18 +236,22 @@ function MapView({
   run,
   onPlay,
   onFerryman,
-  onAbandon
+  onAbandon,
+  onDevWin
 }: {
   run: RunState;
   onPlay: () => void;
   onFerryman: () => void;
   onAbandon: () => void;
+  onDevWin: () => void;
 }) {
   const track = buildTrack(run.seed);
   const stop = track[run.stopIndex];
   const demon = DEMONS[stop.demonId];
-  const demonMaxHp = demonMaxHpFor(stop);
-  const wounded = run.demonHp < demonMaxHp;
+  const roster = rosterFor(stop);
+  const demonMaxHps = demonMaxHpsFor(stop);
+  const wounded = run.demonHps.some((hp, i) => hp < demonMaxHps[i]);
+  const leadSlain = run.demonHps[0] === 0;
   const canFerry = run.relics.includes('ferrymansCoin') && stop.region !== 'bottom';
 
   return (
@@ -257,10 +269,28 @@ function MapView({
         <p className="rogue-flavor">
           <b>{demon.name}.</b> {demon.flavor}
         </p>
-        <p className="rogue-flavor">
-          💀 {run.demonHp}/{demonMaxHp} HP{wounded && ' — it bleeds'}
-        </p>
-        {stop.demonId !== 'imp' && <p className="rogue-quirk">⚠ {demon.quirk}</p>}
+        <ul className="rogue-ruleslist">
+          {roster.map((seat, i) => (
+            <li key={seat.name} className={run.demonHps[i] === 0 ? 'rogue-stop-cleared' : ''}>
+              {run.demonHps[i] === 0 ? '☠' : seat.isLead ? '♛' : '•'} <b>{seat.name}</b> —{' '}
+              {seat.epithet}
+              {run.demonHps[i] > 0 && (
+                <>
+                  {' '}
+                  · 💀 {run.demonHps[i]}/{demonMaxHps[i]}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        {stop.demonId !== 'imp' &&
+          (leadSlain ? (
+            <p className="rogue-quirk rogue-quirk-lifted">
+              ☠ {demon.name} is slain — the table plays fair.
+            </p>
+          ) : (
+            <p className="rogue-quirk">⚠ {demon.quirk}</p>
+          ))}
         <button className="btn btn-primary" onClick={onPlay}>
           {wounded
             ? 'Fight on — the wounds hold'
@@ -296,10 +326,14 @@ function MapView({
         </ol>
       </div>
 
-      {run.relics.length > 0 && <RelicTray relics={run.relics} />}
+      <RelicTray relics={run.relics} />
 
       <button className="btn rogue-abandon" onClick={onAbandon}>
         Abandon run
+      </button>
+      {/* TEMPORARY dev control: preview run progression without playing hands */}
+      <button className="btn rogue-abandon rogue-dev" onClick={onDevWin}>
+        ⚙ Auto-win this gate (dev)
       </button>
     </div>
   );
@@ -388,7 +422,7 @@ function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
         </button>
       </div>
 
-      {run.relics.length > 0 && <RelicTray relics={run.relics} />}
+      <RelicTray relics={run.relics} />
     </div>
   );
 }
@@ -441,15 +475,3 @@ function Hud({ run }: { run: RunState }) {
   );
 }
 
-function RelicTray({ relics }: { relics: RelicId[] }) {
-  return (
-    <div className="panel">
-      <h2>Relics</h2>
-      {relics.map((id, i) => (
-        <div key={`${id}-${i}`} className="rogue-flavor">
-          <b>{RELICS[id].name}</b> — {RELICS[id].effect}
-        </div>
-      ))}
-    </div>
-  );
-}

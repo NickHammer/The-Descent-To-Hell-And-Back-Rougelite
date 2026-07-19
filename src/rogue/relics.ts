@@ -10,7 +10,9 @@ export type RelicId =
   | 'crackedHalo'
   | 'ferrymansCoin'
   | 'emberBrand'
-  | 'ashenShield';
+  | 'ashenShield'
+  | 'devilsLettuce'
+  | 'trumpVision';
 
 export type RelicTier = 'common' | 'uncommon' | 'rare';
 
@@ -80,6 +82,22 @@ export const RELICS: Record<RelicId, RelicDef> = {
     name: 'Ashen Shield',
     flavor: 'What has burned cannot burn again.',
     effect: 'Missed bids deal 2 less damage to you (never below 1).',
+    tier: 'uncommon',
+    cost: 12
+  },
+  devilsLettuce: {
+    id: 'devilsLettuce',
+    name: "🥬 The Devil's Lettuce",
+    flavor: 'One puff and the cards sweat their secrets.',
+    effect: "Smoke curls from the backs of demons' high cards — queens, kings, and aces.",
+    tier: 'rare',
+    cost: 14
+  },
+  trumpVision: {
+    id: 'trumpVision',
+    name: 'Trump Vision',
+    flavor: 'The pit burns hottest where it matters.',
+    effect: "Demons' trumps smolder through the backs of their cards.",
     tier: 'uncommon',
     cost: 12
   }

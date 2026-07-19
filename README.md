@@ -18,11 +18,15 @@ Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
 
 - **19 stops**, each a **battle**: hand sizes climb 1→10 on the way down, then shrink
   10→1 on the way back up, and hands of Oh Hell repeat at each gate until one side falls.
-- **Every demon has HP** (scaled by hand size; the boss has much more). Make your bid
-  exactly and you strike for **5 + bid** damage. Miss and you take **5 + bid** yourself.
-  Bold bids cut deeper both ways.
-- **You have 12 HP**, refilled at each new gate. At 0 HP, **grace** catches you: lose
-  1 grace, return at full health, and the demon keeps its wounds. Grace starts at 3;
+- **Every demon at the table has its own HP** — a lead demon (the quirk owner) carries
+  half the table's total, its named minions split the rest. Make your bid exactly and you
+  strike for **5 + bid** damage at **a demon of your choosing**; a demon at 0 HP leaves
+  the table (a bite of its soul restores 2 HP), and killing the lead lifts its quirk.
+  The gate opens when every demon is down.
+- **Miss and the table strikes back** for **2 + living demons + bid** — a thinner table
+  hits softer, bolder bids cut deeper both ways.
+- **You have 14 HP**, refilled at each new gate. At 0 HP, **grace** catches you: lose
+  1 grace, return at full health, and the demons keep their wounds. Grace starts at 3;
   at 0 the run ends.
 - **Souls** are the run currency: 3 + your bid per made bid (bold bids pay more), plus a
   bounty for felling the boss. A **shop** opens every third stop — spend souls on relics
@@ -35,16 +39,17 @@ Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
 
 ### The demons
 
-Each stop seats 2–3 demons (the shared bot AI), and each demon warps one table rule.
-Quirks are always shown before the hand.
+Each stop seats 2–3 demons: a lead with the table's quirk and a personality (a play-style
+bias on the shared bot AI), plus named minions (Echo, Magpie, The Clerk…). Quirks are
+always shown before the hand, and both the quirk and the personality die with the lead.
 
-| Demon | Quirk |
-|---|---|
-| Imp | None. A kind of innocence, around here. |
-| The Liar | Demons' bids stay hidden until the hand ends. |
-| The Hoarder | You can't see how many tricks the demons have taken. |
-| The Usurer | Missed bids deal double damage to you at this table. |
-| The Adversary (boss) | The trump suit shifts every 3 tricks. |
+| Demon | Quirk | Personality |
+|---|---|---|
+| Imp | None. A kind of innocence, around here. | Plays it straight. |
+| The Liar | Demons' bids stay hidden until the hand ends. | Erratic — sometimes bids off its own count. |
+| The Hoarder | You can't see how many tricks the demons have taken. | Hoards trumps, sheds everything else first. |
+| The Usurer | Missed bids deal double damage to you at this table. | Bids conservatively and waits for you to slip. |
+| The Adversary (boss) | The trump suit shifts every 3 tricks. | Overbids and leads with trumps. |
 
 ### The relics
 
@@ -57,6 +62,8 @@ Information is the primary power axis; bid-tolerance is the rare tier.
 | Second Soul | +1 max grace, and restores 1 grace when taken. |
 | Ember Brand | Made bids strike for +3 damage. |
 | Ashen Shield | Missed bids deal 2 less damage to you (never below 1). |
+| 🥬 The Devil's Lettuce | Smoke curls from the backs of demons' high cards (Q, K, A). |
+| Trump Vision | Demons' trumps smolder through the backs of their cards. |
 | Cracked Halo | Missing by exactly one deals no damage either way. |
 | Ferryman's Coin | Skip a stop outright (consumed; not past the Adversary). |
 

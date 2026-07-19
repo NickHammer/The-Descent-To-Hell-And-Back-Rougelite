@@ -20,6 +20,7 @@ export function CardView({
   disabled = false,
   highlight = false,
   onClick,
+  onPointerDown,
   style
 }: {
   card: Card;
@@ -27,6 +28,7 @@ export function CardView({
   disabled?: boolean;
   highlight?: boolean;
   onClick?: () => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
   style?: React.CSSProperties;
 }) {
   const red = card.suit === 'H' || card.suit === 'D';
@@ -44,8 +46,16 @@ export function CardView({
     .filter(Boolean)
     .join(' ');
 
+  // No native `disabled` attribute: a disabled button swallows the pointer
+  // events the hand fan needs for drag-reorder. The class + guarded onClick
+  // preserve the disabled look and behavior.
   return (
-    <button className={classes} onClick={onClick} disabled={disabled || !onClick} style={style}>
+    <button
+      className={classes}
+      onClick={disabled ? undefined : onClick}
+      onPointerDown={onPointerDown}
+      style={style}
+    >
       <span className="card-corner">
         {label}
         <br />

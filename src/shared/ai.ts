@@ -1,6 +1,14 @@
 import { legalBids, legalPlays, trickWinnerIndex } from './engine.js';
 import { Card, GameState, Suit } from './types.js';
 
+/** Optional personality nudges; omitted = the classic bot. */
+export interface BotStyle {
+  bidBias?: number;
+  erratic?: boolean;
+  holdTrumps?: boolean;
+  leadTrumps?: boolean;
+}
+
 /**
  * Rough chance a single card wins a trick, used to estimate a bid.
  * Trumps are strong at any rank; off-suit cards only matter near the top.
@@ -15,10 +23,18 @@ function cardStrength(card: Card, trump: Suit): number {
   return 0.05;
 }
 
-export function chooseBid(state: GameState, seat: number): number {
+export function chooseBid(
+  state: GameState,
+  seat: number,
+  style?: BotStyle,
+  rand: () => number = Math.random
+): number {
   const hand = state.hands[seat];
   const trump = state.trumpCard!.suit;
-  const estimate = Math.round(hand.reduce((sum, c) => sum + cardStrength(c, trump), 0));
+  let estimate = Math.round(hand.reduce((sum, c) => sum + cardStrength(c, trump), 0));
+  if (style?.bidBias) estimate += style.bidBias;
+  if (style?.erratic && rand() < 0.35) estimate += rand() < 0.5 ? -1 : 1;
+  estimate = Math.max(0, Math.min(hand.length, estimate));
 
   const legal = legalBids(state, seat);
   if (legal.includes(estimate)) return estimate;
@@ -43,7 +59,7 @@ function wouldWin(state: GameState, seat: number, card: Card): boolean {
   return trickWinnerIndex(trial, state.trumpCard!.suit) === seat;
 }
 
-export function chooseCard(state: GameState, seat: number): Card {
+export function chooseCard(state: GameState, seat: number, style?: BotStyle): Card {
   const legal = legalPlays(state, seat).slice().sort(byRank);
   const trump = state.trumpCard!.suit;
   const wantsTricks = state.tricksTaken[seat] < (state.bids[seat] ?? 0);
@@ -51,12 +67,18 @@ export function chooseCard(state: GameState, seat: number): Card {
   if (state.trick.length === 0) {
     // Leading.
     if (wantsTricks) {
+      const trumps = legal.filter((c) => c.suit === trump);
+      // Trump-leaders open with the hammer; everyone else saves it for later.
+      if (style?.leadTrumps && trumps.length > 0) return trumps[trumps.length - 1];
       // Lead our best chance: a boss off-suit card, else our highest trump, else highest.
       const offAces = legal.filter((c) => c.suit !== trump && c.rank === 14);
       if (offAces.length > 0) return offAces[0];
-      const trumps = legal.filter((c) => c.suit === trump);
       if (trumps.length > 0) return trumps[trumps.length - 1];
       return legal[legal.length - 1];
+    }
+    if (style?.holdTrumps) {
+      const offSuit = legal.filter((c) => c.suit !== trump);
+      if (offSuit.length > 0) return offSuit[0];
     }
     return legal[0]; // dump our weakest lead
   }
@@ -74,6 +96,13 @@ export function chooseCard(state: GameState, seat: number): Card {
   }
 
   // At or over our bid: try hard not to take this trick.
-  if (losers.length > 0) return losers[losers.length - 1]; // shed the biggest safe card
+  if (losers.length > 0) {
+    // Trump hoarders shed their biggest off-suit card before parting with a trump.
+    if (style?.holdTrumps) {
+      const offSuitLosers = losers.filter((c) => c.suit !== trump);
+      if (offSuitLosers.length > 0) return offSuitLosers[offSuitLosers.length - 1];
+    }
+    return losers[losers.length - 1]; // shed the biggest safe card
+  }
   return winners[0]; // forced to win: do it as cheaply as possible
 }

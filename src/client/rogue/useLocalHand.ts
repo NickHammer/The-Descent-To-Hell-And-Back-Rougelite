@@ -15,7 +15,7 @@ import {
   startNextHand
 } from '../../shared/engine.js';
 import { Card, GameState, PlayerInfo, Suit } from '../../shared/types.js';
-import { DEMONS } from '../../rogue/demons.js';
+import { DEMONS, DemonSeat, rosterFor } from '../../rogue/demons.js';
 import { StopDef } from '../../rogue/run.js';
 import { mulberry32, pick } from '../../rogue/rng.js';
 import { play as playSound } from '../sounds.js';
@@ -24,16 +24,14 @@ const DEMON_THINK_MS = 750;
 const TRICK_PAUSE_MS = 2600;
 const SUITS: Suit[] = ['S', 'H', 'D', 'C'];
 
-const DEMON_NAMES: Record<string, string[]> = {
-  imp: ['Imp', 'Second Imp', 'Third Imp'],
-  liar: ['The Liar', 'Echo', 'Whisper'],
-  hoarder: ['The Hoarder', 'Magpie', 'Rat'],
-  usurer: ['The Usurer', 'The Clerk', 'The Collector'],
-  adversary: ['The Adversary', 'Left Hand', 'Right Hand']
-};
-
 export interface LocalHand {
   state: GameState;
+  /** roster index for each demon seat (seat 1..n), living demons only */
+  seatRoster: number[];
+  /** the roster entry behind each demon seat, aligned with seatRoster */
+  seatDemons: DemonSeat[];
+  /** each demon seat's remaining cards (local — shown only as backs) */
+  demonHands: Card[][];
   /** player's legal bids / plays (empty when it isn't your turn) */
   legalBids: number[];
   legalPlays: string[];
@@ -51,7 +49,18 @@ export interface LocalHand {
   hurrying: boolean;
 }
 
-export function useLocalHand(stop: StopDef, playerName: string, seed: number): LocalHand {
+export function useLocalHand(
+  stop: StopDef,
+  demonHps: number[],
+  playerName: string,
+  seed: number
+): LocalHand {
+  const roster = rosterFor(stop);
+  const aliveRoster = demonHps
+    .map((hp, i) => (hp > 0 ? i : -1))
+    .filter((i) => i >= 0);
+  const leadAliveNow = demonHps[0] > 0;
+  const style = leadAliveNow ? DEMONS[stop.demonId].style : {};
   const game = useRef<GameState | null>(null);
   const rng = useRef<() => number>(() => Math.random());
   const trumps = useRef(0);
@@ -62,9 +71,9 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
 
   if (game.current === null) {
     rng.current = mulberry32(seed);
-    const seatCount = stop.demonCount + 1;
+    const seatCount = aliveRoster.length + 1;
     const players: PlayerInfo[] = Array.from({ length: seatCount }, (_, i) => ({
-      name: i === 0 ? playerName || 'You' : DEMON_NAMES[stop.demonId][i - 1] ?? `Demon ${i}`,
+      name: i === 0 ? playerName || 'You' : roster[aliveRoster[i - 1]].name,
       isBot: i > 0,
       connected: true
     }));
@@ -95,6 +104,7 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
         const collected = state.tricksTaken.reduce((a, b) => a + b, 0);
         if (
           stop.demonId === 'adversary' &&
+          leadAliveNow &&
           state.phase === 'playing' &&
           collected % 3 === 0 &&
           state.trumpCard
@@ -117,11 +127,11 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
           const seat = state.turn;
           if (seat <= 0) return;
           if (state.phase === 'bidding') {
-            const demonBid = chooseBid(state, seat);
+            const demonBid = chooseBid(state, seat, style, rng.current);
             placeBid(state, seat, demonBid);
             lastBid.current = { seat, bid: demonBid };
           } else if (state.phase === 'playing') {
-            const card = chooseCard(state, seat);
+            const card = chooseCard(state, seat, style);
             if (card.suit === state.trumpCard!.suit) trumps.current += 1;
             playCard(state, seat, card.id);
             if (!fast.current) playSound('card');
@@ -157,6 +167,9 @@ export function useLocalHand(stop: StopDef, playerName: string, seed: number): L
 
   return {
     state,
+    seatRoster: aliveRoster,
+    seatDemons: aliveRoster.map((i) => roster[i]),
+    demonHands: state.hands.slice(1),
     legalBids: legalBids(state, 0),
     legalPlays: legalPlays(state, 0).map((c) => c.id),
     sortedHand: sortHand(state.hands[0]),
