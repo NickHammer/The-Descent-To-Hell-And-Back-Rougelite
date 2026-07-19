@@ -67,6 +67,7 @@ export function useLocalHand(
   const shifted = useRef(false);
   const lastBid = useRef<{ seat: number; bid: number } | null>(null);
   const fast = useRef(false);
+  const turnAnnounced = useRef(false);
   const [, setVersion] = useState(0);
 
   if (game.current === null) {
@@ -144,7 +145,16 @@ export function useLocalHand(
       return () => clearTimeout(timer);
     }
 
-    if (state.turn === 0) playSound('turn');
+    // Announce "your turn" only when it becomes your turn — this effect runs on
+    // every render (drag moves included), so a bare check would chime nonstop.
+    if (state.turn === 0) {
+      if (!turnAnnounced.current) {
+        turnAnnounced.current = true;
+        playSound('turn');
+      }
+    } else {
+      turnAnnounced.current = false;
+    }
   });
 
   const bid = (b: number) => {

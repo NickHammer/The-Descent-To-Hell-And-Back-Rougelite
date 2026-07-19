@@ -94,7 +94,7 @@ export function RunApp() {
   } else if (run.phase === 'shop') {
     view = <ShopView run={run} onChange={update} />;
   } else if (run.phase === 'dead' || run.phase === 'won') {
-    view = <EndView run={run} onNewRun={() => setRun(newRun())} />;
+    view = <EndView run={run} onHome={() => setRun(null)} />;
   } else {
     view = (
       <MapView
@@ -424,7 +424,7 @@ function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
   );
 }
 
-function EndView({ run, onNewRun }: { run: RunState; onNewRun: () => void }) {
+function EndView({ run, onHome }: { run: RunState; onHome: () => void }) {
   const won = run.phase === 'won';
   const cleared = won ? STOP_COUNT : run.stopIndex;
   return (
@@ -443,8 +443,8 @@ function EndView({ run, onNewRun }: { run: RunState; onNewRun: () => void }) {
           <li>Souls in hand: {run.souls}</li>
           <li>Relics: {run.relics.length ? run.relics.map((r) => RELICS[r].name).join(', ') : 'none'}</li>
         </ul>
-        <button className="btn btn-primary" onClick={onNewRun}>
-          {won ? 'Descend again' : 'Try again'}
+        <button className="btn btn-primary" onClick={onHome}>
+          {won ? '⛩ Return to the gate' : 'Return to the gate'}
         </button>
       </div>
       <div className="panel">

@@ -71,8 +71,20 @@ export function HandView({
   }, [handSize]);
   const byId = new Map(hand.sortedHand.map((c) => [c.id, c]));
   const fanCards = order.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
-  const reorder = useFanReorder(fanRef, setOrder);
-  reorder.displayed.current = fanCards.map((c) => c.id);
+  const feltRef = useRef<HTMLDivElement>(null);
+  const drag = useFanDrag(
+    fanRef,
+    feltRef,
+    setOrder,
+    (id) => state.phase === 'playing' && state.turn === 0 && hand.legalPlays.includes(id),
+    (id) => hand.play(id)
+  );
+  drag.displayed.current = fanCards.map((c) => c.id);
+  const dropPlayable =
+    drag.dragId !== null &&
+    state.phase === 'playing' &&
+    myTurn &&
+    hand.legalPlays.includes(drag.dragId);
 
   return (
     <div className="game rogue-hand">
@@ -193,7 +205,10 @@ export function HandView({
         ))}
       </div>
 
-      <div className="table-felt">
+      <div
+        ref={feltRef}
+        className={`table-felt ${drag.overFelt && dropPlayable ? 'felt-drop' : ''}`}
+      >
         {hand.trumpShifted && state.trumpCard && (
           <div className="winner-banner rogue-shift">
             The trump shifts to {SUIT_GLYPHS[state.trumpCard.suit]} {SUIT_NAMES[state.trumpCard.suit]}!
@@ -272,7 +287,7 @@ export function HandView({
         <div className="hand-fan" ref={fanRef}>
           {fanCards.map((card, i) => {
             const playable = state.phase === 'playing' && myTurn && hand.legalPlays.includes(card.id);
-            const lifted = reorder.dragId === card.id;
+            const lifted = drag.dragId === card.id;
             return (
               <CardView
                 key={card.id}
@@ -282,27 +297,26 @@ export function HandView({
                 onClick={
                   playable
                     ? () => {
-                        if (!reorder.wasDrag.current) hand.play(card.id);
+                        if (!drag.wasDrag.current) hand.play(card.id);
                       }
                     : undefined
                 }
-                onPointerDown={reorder.arm(card.id)}
+                onPointerDown={drag.arm(card.id)}
                 style={{
                   animationDelay: `${i * 45}ms`,
-                  ...(lifted
-                    ? {
-                        transform: 'translateY(-14px) scale(1.07)',
-                        zIndex: 20,
-                        boxShadow: '0 10px 22px rgba(0, 0, 0, 0.5)',
-                        cursor: 'grabbing'
-                      }
-                    : {})
+                  ...(lifted ? { opacity: 0.35 } : {})
                 }}
               />
             );
           })}
         </div>
       </div>
+
+      {drag.dragId && drag.pos && byId.has(drag.dragId) && (
+        <div className="card-ghost" style={{ left: drag.pos.x, top: drag.pos.y }}>
+          <CardView card={byId.get(drag.dragId)!} size="lg" />
+        </div>
+      )}
 
       {devReport && (
         <div className="modal-backdrop">
@@ -332,19 +346,30 @@ export function HandView({
 }
 
 /**
- * Drag-to-reorder for the hand fan. Mouse: press and drag past a small
- * threshold. Touch: hold ~250ms to lift (so the fan can still scroll
- * sideways), then drag. The lifted card jumps into slots live as the pointer
- * crosses its neighbors' midpoints; a tap without a drag still plays the card.
+ * Unified hand-fan drag. Mouse: press and drag past a small threshold.
+ * Touch: hold ~250ms to lift (so the fan can still scroll sideways), then drag.
+ * While lifted, a fixed-position ghost follows the pointer and the original
+ * card dims in place. Over the fan, the card jumps into slots live (reorder);
+ * over the table felt, a playable card highlights the felt and dropping it
+ * plays it. A tap without a drag still plays the card.
  */
-function useFanReorder(
+function useFanDrag(
   fanRef: React.RefObject<HTMLDivElement>,
-  setOrder: React.Dispatch<React.SetStateAction<string[]>>
+  feltRef: React.RefObject<HTMLDivElement>,
+  setOrder: React.Dispatch<React.SetStateAction<string[]>>,
+  canPlay: (id: string) => boolean,
+  onPlay: (id: string) => void
 ) {
   const [dragId, setDragId] = useState<string | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [overFelt, setOverFelt] = useState(false);
   const dragRef = useRef<string | null>(null);
+  const overFeltRef = useRef(false);
   const wasDrag = useRef(false);
   const displayed = useRef<string[]>([]);
+  // latest callbacks without re-subscribing the window listeners
+  const cbRef = useRef({ canPlay, onPlay });
+  cbRef.current = { canPlay, onPlay };
   const startRef = useRef<{
     id: string;
     x: number;
@@ -355,10 +380,11 @@ function useFanReorder(
   const holdTimer = useRef(0);
 
   useEffect(() => {
-    const lift = (id: string) => {
+    const lift = (id: string, x: number, y: number) => {
       dragRef.current = id;
       wasDrag.current = true; // the click after pointerup must not play the card
       setDragId(id);
+      setPos({ x, y });
     };
 
     const onMove = (e: PointerEvent) => {
@@ -373,11 +399,25 @@ function useFanReorder(
           startRef.current = null;
           return;
         }
-        lift(s.id);
+        lift(s.id, e.clientX, e.clientY);
       }
-      const fan = fanRef.current;
       const id = dragRef.current;
-      if (!fan || !id) return;
+      if (!id) return;
+      setPos({ x: e.clientX, y: e.clientY });
+
+      const feltRect = feltRef.current?.getBoundingClientRect();
+      const onFelt =
+        !!feltRect &&
+        e.clientX >= feltRect.left &&
+        e.clientX <= feltRect.right &&
+        e.clientY >= feltRect.top &&
+        e.clientY <= feltRect.bottom;
+      overFeltRef.current = onFelt;
+      setOverFelt(onFelt);
+      if (onFelt) return; // aiming at the table: hold the fan order still
+
+      const fan = fanRef.current;
+      if (!fan) return;
       const els = Array.from(fan.querySelectorAll<HTMLElement>('.card'));
       const mids = displayed.current
         .map((cardId, i) => {
@@ -398,9 +438,17 @@ function useFanReorder(
       const s = startRef.current;
       if (!s || e.pointerId !== s.pointerId) return;
       clearTimeout(holdTimer.current);
+      const id = dragRef.current;
+      const dropOnFelt = overFeltRef.current;
       startRef.current = null;
       dragRef.current = null;
+      overFeltRef.current = false;
       setDragId(null);
+      setPos(null);
+      setOverFelt(false);
+      if (id && dropOnFelt && e.type === 'pointerup' && cbRef.current.canPlay(id)) {
+        cbRef.current.onPlay(id);
+      }
       // let the synthetic click (fired right after pointerup) see the flag
       window.setTimeout(() => {
         wasDrag.current = false;
@@ -415,7 +463,7 @@ function useFanReorder(
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [fanRef, setOrder]);
+  }, [fanRef, feltRef, setOrder]);
 
   // While a touch drag is lifted, block the fan's native horizontal scroll.
   useEffect(() => {
@@ -431,7 +479,8 @@ function useFanReorder(
   const arm = (id: string) => (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const touch = e.pointerType !== 'mouse';
-    startRef.current = { id, x: e.clientX, y: e.clientY, pointerId: e.pointerId, touch };
+    const { clientX, clientY } = e;
+    startRef.current = { id, x: clientX, y: clientY, pointerId: e.pointerId, touch };
     if (touch) {
       clearTimeout(holdTimer.current);
       holdTimer.current = window.setTimeout(() => {
@@ -439,12 +488,13 @@ function useFanReorder(
           dragRef.current = id;
           wasDrag.current = true;
           setDragId(id);
+          setPos({ x: clientX, y: clientY });
         }
       }, 250);
     }
   };
 
-  return { dragId, wasDrag, displayed, arm };
+  return { dragId, pos, overFelt, wasDrag, displayed, arm };
 }
 
 /**

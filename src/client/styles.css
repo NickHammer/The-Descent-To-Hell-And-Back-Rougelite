@@ -226,6 +226,7 @@ body {
   gap: 12px;
   padding: 18px;
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
 
 .table-hintline {
@@ -505,7 +506,10 @@ body {
   display: flex;
   max-width: 100%;
   overflow-x: auto;
-  padding: 4px 12px;
+  /* overflow-x: auto forces overflow-y to compute to auto too; clip it and
+     give the hover lift headroom so no vertical scrollbar can ever appear */
+  overflow-y: clip;
+  padding: 18px 12px 4px;
 }
 
 /* Center when the fan fits; when it overflows, keep the first card reachable
@@ -525,6 +529,23 @@ body {
 
 .hand-fan .card:first-of-type {
   margin-left: 0;
+}
+
+/* the free-floating copy of a card being dragged */
+.card-ghost {
+  position: fixed;
+  transform: translate(-50%, -60%) scale(1.08) rotate(2deg);
+  pointer-events: none;
+  z-index: 60;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+}
+
+/* the table is ready to take the dragged card */
+.felt-drop {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 40px rgba(0, 0, 0, 0.35),
+    inset 0 0 34px rgba(242, 182, 50, 0.35);
 }
 
 @keyframes hand-in {
