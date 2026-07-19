@@ -1,0 +1,17 @@
+Engravings by Gustave Doré (1832–1883) for Dante's Divine Comedy.
+Public domain (author died more than 100 years ago). Scans obtained from
+Wikimedia Commons via Special:FilePath:
+
+- hell.jpg    — Inferno, Plate 9 (Canto III): Charon, the ferryman of Hell.
+- bottom.jpg  — Inferno, Canto XXXIV: Lucifer, King of Hell.
+- heaven.jpg  — Paradiso, Canto XXXI: the Rosa Celeste.
+- gate.jpg    — Inferno, Plate 1 (Canto I): the dark wood.
+
+Gate plates (map screen), all Gustave Doré, Divine Comedy:
+- gate-0..8.jpg   — Inferno: Limbo (IV), Minos (V), Cerberus (VI), Plutus (VII),
+                    the Styx (VIII), the arch-heretics (IX), the Minotaur (XII),
+                    Geryon (XVII), Antaeus (XXXI).
+- gate-10..17.jpg — Paradiso: the Moon (III), Mercury (V), Venus (VIII),
+                    the Sun (XII), Mars (XIV), Jupiter (XVIII), Saturn (XXI),
+                    the Fixed Stars (XXVII).
+(The Bottom reuses bottom.jpg; Sphere 9 reuses heaven.jpg.)

@@ -3,6 +3,7 @@
  * lives in localStorage, hands are played by useLocalHand against ai.ts demons.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { GATE_ART } from './art.js';
 import { DEMONS, rosterFor } from '../../rogue/demons.js';
 import { RELICS, RelicId } from '../../rogue/relics.js';
 import {
@@ -199,6 +200,10 @@ function StartView({ onStart }: { onStart: () => void }) {
         You died. Nine circles down, nine spheres up — one hand of cards at every gate.
         Bid exactly what you take, or the pit takes you.
       </p>
+      <figure className="home-art">
+        <img src="/art/gate.jpg" alt="Dante lost in the dark wood — engraving by Gustave Doré" />
+        <figcaption>Gustave Doré · Inferno I</figcaption>
+      </figure>
       <div className="panel">
         <h2>The rules of the pit</h2>
         <ul className="rogue-ruleslist">
@@ -262,7 +267,11 @@ function MapView({
       </h1>
       <Hud run={run} />
 
-      <div className="panel">
+      <div className="panel map-stop">
+        <figure className="gate-art">
+          <img src={GATE_ART[stop.index].src} alt={GATE_ART[stop.index].caption} />
+          <figcaption>Gustave Doré · {GATE_ART[stop.index].caption}</figcaption>
+        </figure>
         <h2>
           {stop.label} · {stop.handSize} card{stop.handSize === 1 ? '' : 's'} · vs {stop.demonCount}{' '}
           demons
@@ -304,7 +313,7 @@ function MapView({
         )}
       </div>
 
-      <div className="panel">
+      <div className="panel map-road">
         <h2>The road</h2>
         <ol className="rogue-track">
           {track.map((s) => (

@@ -187,10 +187,44 @@ body {
   gap: 12px;
 }
 
-.players-strip {
+/* demon flank: one card per demon (name, HP, bid line, card backs) */
+.flank-demons {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.demon-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* your flank: trump, your card, relic satchel */
+.flank-you {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.you-card {
+  flex: 1 1 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* the felt's wrapper so the table can sit off-center on wide screens */
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage .table-felt {
+  flex: 1;
 }
 
 .player-badge {
@@ -775,27 +809,13 @@ body {
 
 /* battle health bars */
 
-.battle-bar {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hp-block {
-  flex: 1;
-  background: var(--panel);
-  border-radius: 10px;
-  padding: 8px 12px;
-  min-width: 0;
-}
-
 .hp-label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  margin-bottom: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--muted);
 }
 
 .hpbar {
@@ -824,8 +844,7 @@ body {
   opacity: 0.45;
 }
 
-.hp-dead .hp-label {
-  margin-bottom: 0;
+.hp-dead .player-name {
   text-decoration: line-through;
 }
 
@@ -1326,4 +1345,276 @@ body {
     min-height: 160px;
     border-width: 4px;
   }
+}
+
+/* ==========================================================================
+   Asymmetry experiment (desktop ≥ 900px) — Dungeons & Degenerate Gamblers
+   inspired: demons own the left flank, the table sits off-center, your
+   status rides the right rail, and nothing is ruler-straight. Below 900px
+   every screen keeps the stacked layout above.
+   ========================================================================== */
+@media (min-width: 900px) {
+  /* ---------- the fight ---------- */
+
+  .game.rogue-hand {
+    display: grid;
+    grid-template-areas:
+      'head head head'
+      'demons stage you'
+      'demons hand hand';
+    grid-template-columns: 250px 1fr 230px;
+    grid-template-rows: auto 1fr auto;
+    column-gap: 18px;
+    row-gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .rogue-hand .topbar {
+    grid-area: head;
+  }
+
+  .rogue-hand .flank-demons {
+    grid-area: demons;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 14px;
+  }
+
+  .rogue-hand .stage {
+    grid-area: stage;
+    /* the table leans right of true center */
+    padding-left: 7%;
+  }
+
+  .rogue-hand .flank-you {
+    grid-area: you;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .flank-you .trump-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  .rogue-hand .my-area {
+    grid-area: hand;
+    align-items: flex-end;
+  }
+
+  /* right-anchor the fan: ::before soaks up the slack space */
+  .rogue-hand .hand-fan::after {
+    margin: 0;
+  }
+
+  /* ---------- home / gift / shop / end ---------- */
+
+  .home {
+    max-width: 940px;
+    display: grid;
+    grid-template-columns: 0.9fr 1.25fr;
+    column-gap: 40px;
+    align-items: start;
+  }
+
+  .home > .title {
+    grid-column: 1;
+    text-align: left;
+    margin-top: 1.4em;
+  }
+
+  .home > .subtitle {
+    grid-column: 1;
+    text-align: left;
+    font-style: italic;
+  }
+
+  .home > .panel,
+  .home > .rogue-hudbar {
+    grid-column: 2;
+  }
+
+  .home > .relic-tray,
+  .home > .rogue-abandon,
+  .home > .rogue-dev {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .home > .relic-tray {
+    align-items: flex-start;
+  }
+
+  /* ---------- the map: a descent path down the left edge ---------- */
+
+  .rogue-map {
+    grid-template-columns: 300px 1fr;
+  }
+
+  .rogue-map > .title {
+    grid-column: 2;
+    margin-top: 0.4em;
+  }
+
+  .rogue-map > .rogue-hudbar {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .rogue-map > .map-road {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+  }
+
+  .rogue-map > .map-stop {
+    grid-column: 2;
+  }
+
+  .rogue-map > .relic-tray,
+  .rogue-map > .rogue-abandon {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .map-road .rogue-track {
+    list-style: none;
+    padding-left: 16px;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .map-road .rogue-track li {
+    position: relative;
+  }
+
+  .map-road .rogue-track li::before {
+    content: '';
+    position: absolute;
+    left: -21px;
+    top: 0.55em;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+  }
+
+  .map-road .rogue-stop-current {
+    transform: translateX(8px);
+    font-weight: 700;
+  }
+
+  .map-road .rogue-stop-current::before {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+}
+
+/* ---------- Doré plates (public domain) as region backdrops ---------- */
+
+.rogue-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  /* overscale to push the scans' white page margins out of frame */
+  transform: scale(1.12);
+  /* keep the table readable: the engraving fades out toward the bottom */
+  mask-image: linear-gradient(to bottom, black 35%, transparent 92%);
+  -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent 92%);
+}
+
+.rogue-backdrop-hell::before {
+  background-image: url('/art/hell.jpg');
+  opacity: 0.2;
+  filter: sepia(0.7) hue-rotate(-18deg) saturate(1.6) brightness(0.85);
+}
+
+.rogue-backdrop-bottom::before {
+  background-image: url('/art/bottom.jpg');
+  opacity: 0.25;
+  filter: sepia(0.5) hue-rotate(215deg) saturate(1.4) brightness(0.75);
+}
+
+.rogue-backdrop-heaven::before {
+  background-image: url('/art/heaven.jpg');
+  opacity: 0.22;
+  background-position: center 20%;
+  filter: sepia(0.55) saturate(1.3) brightness(1.05);
+}
+
+/* the dark wood on the home screen */
+.home-art {
+  margin: 18px 0 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #2c3a33;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  position: relative;
+}
+
+.home-art img {
+  /* overdraw to crop the scan's page margins and caption */
+  display: block;
+  width: 112%;
+  margin: -3% -6% -9% -6%;
+}
+
+.home-art figcaption {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: 0.72rem;
+  color: rgba(232, 239, 233, 0.75);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+@media (min-width: 900px) {
+  .home > .home-art {
+    grid-column: 1;
+  }
+}
+
+/* the current gate's Doré plate on the map */
+.gate-art {
+  margin: 0;
+  position: relative;
+  height: 230px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2c3a33;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.gate-art img {
+  /* overdraw crops the scans' page margins; cover fills any aspect ratio */
+  display: block;
+  width: 108%;
+  height: 108%;
+  margin: -4%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.gate-art figcaption {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  font-size: 0.7rem;
+  color: rgba(232, 239, 233, 0.8);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 8px;
+  border-radius: 999px;
 }

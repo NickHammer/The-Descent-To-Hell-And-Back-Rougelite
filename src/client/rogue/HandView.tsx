@@ -95,17 +95,6 @@ export function HandView({
             {demon.name}
           </span>
         </div>
-        <div className="trump-info">
-          Trump:{' '}
-          {trumpHidden ? (
-            <span className="card card-md rogue-card-back" title="Face-down until bids are locked" />
-          ) : (
-            <>
-              <CardView card={state.trumpCard!} size="md" />
-              <span className="trump-name">{SUIT_NAMES[state.trumpCard!.suit]}</span>
-            </>
-          )}
-        </div>
         <div className="topbar-right">
           <span className="rogue-hud">🕊 {grace}</span>
           <span className="rogue-hud">✦ {souls}</span>
@@ -118,97 +107,89 @@ export function HandView({
         </div>
       </header>
 
-      <div className="battle-bar">
-        <div className="hp-block">
-          <div className="hp-label">
-            {playerName || 'You'} · ❤ {hp}/{maxHp}
-          </div>
-          <div className="hpbar">
-            <span className="hpbar-fill hpbar-you" style={{ width: `${(hp / maxHp) * 100}%` }} />
-          </div>
-        </div>
-        {roster.map((seat, i) =>
-          demonHps[i] > 0 ? (
-            <div className="hp-block" key={seat.name}>
+      <div className="flank-demons">
+        {roster.map((seatDef, ri) => {
+          if (demonHps[ri] === 0) {
+            return (
+              <div className="player-badge demon-card hp-dead" key={seatDef.name}>
+                <div className="player-name">☠ {seatDef.name}</div>
+              </div>
+            );
+          }
+          const seat = hand.seatRoster.indexOf(ri) + 1;
+          return (
+            <div
+              key={seatDef.name}
+              className={`player-badge demon-card ${seat === state.turn ? 'player-turn' : ''}`}
+            >
+              <div className="player-name">
+                {seatDef.isLead && <span title="Lead demon — its quirk dies with it">♛</span>}
+                {seatDef.name}
+                {seat === state.dealer && <span className="dealer-chip" title="Dealer">D</span>}
+              </div>
               <div className="hp-label">
-                {seat.isLead && '♛ '}
-                {seat.name} · 💀 {demonHps[i]}/{demonMaxHps[i]}
+                💀 {demonHps[ri]}/{demonMaxHps[ri]}
               </div>
               <div className="hpbar">
                 <span
                   className="hpbar-fill hpbar-demon"
-                  style={{ width: `${(demonHps[i] / demonMaxHps[i]) * 100}%` }}
+                  style={{ width: `${(demonHps[ri] / demonMaxHps[ri]) * 100}%` }}
                 />
               </div>
+              <div className="player-line">
+                {state.bids[seat] === null ? (
+                  <span className="muted">
+                    {bidding ? (seat === state.turn ? 'bidding…' : 'waits to bid') : '—'}
+                  </span>
+                ) : bidding ? (
+                  <span>
+                    bids <b>{hideBids ? '?' : state.bids[seat]}</b>
+                  </span>
+                ) : (
+                  <span>
+                    took <b>{hideTaken ? '?' : state.tricksTaken[seat]}</b> of{' '}
+                    <b>{hideBids ? '?' : state.bids[seat]}</b> bid
+                  </span>
+                )}
+              </div>
+              {(hand.demonHands[seat - 1]?.length ?? 0) > 0 && (
+                <div className="demon-backs">
+                  {hand.demonHands[seat - 1].map((card) => {
+                    const smoke = relics.includes('devilsLettuce') && card.rank >= 12;
+                    const ember =
+                      relics.includes('trumpVision') && card.suit === state.trumpCard!.suit;
+                    return (
+                      <span
+                        key={card.id}
+                        className={`mini-card-back ${smoke ? 'back-smoke' : ''} ${ember ? 'back-ember' : ''}`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          );
+        })}
+        {stop.demonId !== 'imp' &&
+          (leadAliveNow ? (
+            <div className="rogue-quirk">⚠ {demon.quirk}</div>
           ) : (
-            <div className="hp-block hp-dead" key={seat.name}>
-              <div className="hp-label">☠ {seat.name}</div>
+            <div className="rogue-quirk rogue-quirk-lifted">
+              ☠ {demon.name} is slain — the table plays fair.
             </div>
-          )
+          ))}
+        {relics.includes('graveLedger') && (
+          <div className="rogue-quirk rogue-ledger">
+            Grave Ledger: {hand.trumpsPlayed} trump{hand.trumpsPlayed === 1 ? '' : 's'} played
+          </div>
         )}
       </div>
 
-      {stop.demonId !== 'imp' &&
-        (leadAliveNow ? (
-          <div className="rogue-quirk">⚠ {demon.quirk}</div>
-        ) : (
-          <div className="rogue-quirk rogue-quirk-lifted">
-            ☠ {demon.name} is slain — the table plays fair.
-          </div>
-        ))}
-      {relics.includes('graveLedger') && (
-        <div className="rogue-quirk rogue-ledger">
-          Grave Ledger: {hand.trumpsPlayed} trump{hand.trumpsPlayed === 1 ? '' : 's'} played
-        </div>
-      )}
-      <RelicTray relics={relics} />
-
-      <div className="players-strip">
-        {state.players.map((p, i) => (
-          <div key={i} className={`player-badge ${i === state.turn ? 'player-turn' : ''}`}>
-            <div className="player-name">
-              {p.name}
-              {i === 0 && <span className="you-tag"> (you)</span>}
-              {i === state.dealer && <span className="dealer-chip" title="Dealer">D</span>}
-            </div>
-            <div className="player-line">
-              {state.bids[i] === null ? (
-                <span className="muted">{bidding ? (i === state.turn ? 'bidding…' : 'waits to bid') : '—'}</span>
-              ) : bidding ? (
-                <span>
-                  bids <b>{i > 0 && hideBids ? '?' : state.bids[i]}</b>
-                </span>
-              ) : (
-                <span>
-                  took <b>{i > 0 && hideTaken ? '?' : state.tricksTaken[i]}</b> of{' '}
-                  <b>{i > 0 && hideBids ? '?' : state.bids[i]}</b> bid
-                </span>
-              )}
-            </div>
-            {i > 0 && (hand.demonHands[i - 1]?.length ?? 0) > 0 && (
-              <div className="demon-backs">
-                {hand.demonHands[i - 1].map((card) => {
-                  const smoke = relics.includes('devilsLettuce') && card.rank >= 12;
-                  const ember =
-                    relics.includes('trumpVision') && card.suit === state.trumpCard!.suit;
-                  return (
-                    <span
-                      key={card.id}
-                      className={`mini-card-back ${smoke ? 'back-smoke' : ''} ${ember ? 'back-ember' : ''}`}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div
-        ref={feltRef}
-        className={`table-felt ${drag.overFelt && dropPlayable ? 'felt-drop' : ''}`}
-      >
+      <div className="stage">
+        <div
+          ref={feltRef}
+          className={`table-felt ${drag.overFelt && dropPlayable ? 'felt-drop' : ''}`}
+        >
         {hand.trumpShifted && state.trumpCard && (
           <div className="winner-banner rogue-shift">
             The trump shifts to {SUIT_GLYPHS[state.trumpCard.suit]} {SUIT_NAMES[state.trumpCard.suit]}!
@@ -257,6 +238,48 @@ export function HandView({
         {state.trickWinner !== null && (
           <div className="winner-banner">{state.players[state.trickWinner].name} takes the trick</div>
         )}
+        </div>
+      </div>
+
+      <div className="flank-you">
+        <div className="trump-info">
+          Trump:{' '}
+          {trumpHidden ? (
+            <span className="card card-md rogue-card-back" title="Face-down until bids are locked" />
+          ) : (
+            <>
+              <CardView card={state.trumpCard!} size="md" />
+              <span className="trump-name">{SUIT_NAMES[state.trumpCard!.suit]}</span>
+            </>
+          )}
+        </div>
+        <div className={`player-badge you-card ${state.turn === 0 ? 'player-turn' : ''}`}>
+          <div className="player-name">
+            {playerName || 'You'}
+            <span className="you-tag"> (you)</span>
+            {state.dealer === 0 && <span className="dealer-chip" title="Dealer">D</span>}
+          </div>
+          <div className="hp-label">
+            ❤ {hp}/{maxHp}
+          </div>
+          <div className="hpbar">
+            <span className="hpbar-fill hpbar-you" style={{ width: `${(hp / maxHp) * 100}%` }} />
+          </div>
+          <div className="player-line">
+            {state.bids[0] === null ? (
+              <span className="muted">{bidding ? (myTurn ? 'bidding…' : 'waits to bid') : '—'}</span>
+            ) : bidding ? (
+              <span>
+                bids <b>{state.bids[0]}</b>
+              </span>
+            ) : (
+              <span>
+                took <b>{state.tricksTaken[0]}</b> of <b>{state.bids[0]}</b> bid
+              </span>
+            )}
+          </div>
+        </div>
+        <RelicTray relics={relics} />
       </div>
 
       <div className="my-area">
