@@ -1,0 +1,16 @@
+appId: com.jrussell.thedescent
+productName: The Descent
+directories:
+  output: release
+files:
+  - dist/**
+  - dist-electron/**
+  - build/icon.png
+  - package.json
+win:
+  icon: build/icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  deleteAppDataOnUninstall: false

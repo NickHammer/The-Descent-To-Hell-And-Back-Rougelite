@@ -5,7 +5,8 @@ export type SoundName = (typeof NAMES)[number];
 
 const clips = new Map<SoundName, HTMLAudioElement>();
 for (const name of NAMES) {
-  const clip = new Audio(`/sounds/${name}.mp3`);
+  // BASE_URL-relative so the path resolves both on the web and under file:// in Electron.
+  const clip = new Audio(`${import.meta.env.BASE_URL}sounds/${name}.mp3`);
   clip.preload = 'auto';
   clips.set(name, clip);
 }
