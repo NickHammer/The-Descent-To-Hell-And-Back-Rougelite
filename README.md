@@ -27,17 +27,19 @@ Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
 - **Miss and the table strikes back** — scored the same way in reverse: `(2 + tricks
   the demons won) × (1 + 0.2 × how badly you missed by)` damage to you. A close call
   stings less than a wild overbid.
+- **A made bid still stings a little** if the table stole tricks around you that
+  hand — a small flat nick per demon trick won (capped low), so a made bid stays the
+  safe line but a table that plays well isn't invisible.
 - **You have 14 HP**, refilled at each new gate. At 0 HP, **grace** catches you: lose
   1 grace, return at full health, and the demons keep their wounds. Grace starts at 3;
   at 0 the run ends.
 - **Souls** are the run currency: 3 + a tenth of the damage you dealt per made bid
-  (a harder blow shakes more loose), plus a bounty for felling the boss. A **shop** opens every third stop — spend souls on relics
-  or restore 1 grace.
-- **The gift at the gate**: every run opens with a choice of 1 of 3 relics, and an
-  information relic is always among them.
+  (a harder blow shakes more loose), plus a bounty for felling the boss. A **shop**
+  opens every third stop — spend souls on relics, restore 1 grace, or reroll the
+  stock (once per visit). Rarer relics show up less often.
 - **The light fails as you descend**: on hands of 4+ cards the trump card stays face-down
   while you bid. The demons can see it. Small hands play fair.
-- Runs are seeded — the track, demons, gift, and shops are deterministic per seed.
+- Runs are seeded — the track, demons, and shops are deterministic per seed.
 
 ### The demons
 
@@ -67,7 +69,7 @@ legendary **orange**.
 | Second Soul | uncommon | +1 max grace, and restores 1 grace when taken. |
 | Ember Brand | uncommon | Made bids strike with +1 mult. |
 | Ashen Shield | uncommon | Missed bids deal 2 less damage to you (never below 1). |
-| Trump Vision | uncommon | Demons' trumps smolder through the backs of their cards. |
+| Trump Vision | rare | Demons' trumps smolder through the backs of their cards. |
 | 🥬 The Devil's Lettuce | rare | Smoke curls from the backs of demons' high cards (Q, K, A). |
 | Ferryman's Coin | uncommon | Skip a stop outright (consumed; not past the Adversary). |
 | Cracked Halo | legendary | Missing by exactly one deals no damage either way. |

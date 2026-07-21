@@ -29,6 +29,14 @@ export type RelicId =
 
 export type RelicTier = 'common' | 'uncommon' | 'rare' | 'legendary';
 
+/** Per-relic shop odds by tier — common shows up most, legendary rarest. See `shopStock()` in run.ts. */
+export const TIER_WEIGHT: Record<RelicTier, number> = {
+  common: 10,
+  uncommon: 5,
+  rare: 2,
+  legendary: 1
+};
+
 export interface RelicDef {
   id: RelicId;
   name: string;
@@ -119,8 +127,8 @@ export const RELICS: Record<RelicId, RelicDef> = {
     name: 'Trump Vision',
     flavor: 'The pit burns hottest where it matters.',
     effect: "Demons' trumps smolder through the backs of their cards.",
-    tier: 'uncommon',
-    cost: 12
+    tier: 'rare',
+    cost: 14
   },
   trumpAnchor: {
     id: 'trumpAnchor',

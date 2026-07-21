@@ -20,7 +20,6 @@ import {
   destroyCard,
   duplicateCard,
   enchantCard,
-  giftOffers,
   isTrumpBlind,
   devClearGate,
   leadAlive,
@@ -29,12 +28,13 @@ import {
   MAX_DECK_SIZE,
   newRun,
   PLAYER_MAX_HP,
+  REROLL_COST,
+  rerollShop,
   resolveHand,
   RunState,
   soulsForClear,
   STOP_COUNT,
   StopDef,
-  takeGift,
   useFerrymansCoin,
   usePactEcho,
   usePactRuin,
@@ -46,9 +46,9 @@ import { scoreDemonStrike, scoreStrike, TrickWin } from './scoring.js';
 const demonTricks = (n: number): TrickWin[] =>
   Array.from({ length: n }, () => ({ rank: 2, suit: 'C' as const, trump: false }));
 
-/** A run that has already taken its gate gift and stands on the map. */
+/** A fresh run, already standing on the map. */
 function startedRun(seed: number): RunState {
-  return { ...newRun(seed), phase: 'map', shopOffers: [] };
+  return newRun(seed);
 }
 
 describe('track', () => {
@@ -330,49 +330,41 @@ describe('shop', () => {
     const hurt = { ...atShop(50), grace: 1 };
     expect(buyHeal(hurt).grace).toBe(2);
   });
-});
-
-describe('the gift at the gate', () => {
-  it('every run opens with a choice of three, always including an information relic', () => {
-    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-      const run = newRun(seed);
-      expect(run.phase).toBe('gift');
-      expect(run.shopOffers.length).toBe(3);
-      expect(new Set(run.shopOffers).size).toBe(3);
-      expect(run.shopOffers.some((id) => id === 'loadedDie' || id === 'graveLedger')).toBe(true);
-      expect(run.shopOffers).toEqual(giftOffers(seed));
-    }
-  });
-
-  it('taking the gift is free, applies effects, and opens the map', () => {
-    const run = newRun(99);
-    const taken = takeGift(run, run.shopOffers[0]);
-    expect(taken.phase).toBe('map');
-    expect(taken.relics).toEqual([run.shopOffers[0]]);
-    expect(taken.souls).toBe(0);
-    expect(taken.shopOffers).toEqual([]);
-    expect(() => takeGift(taken, 'loadedDie')).toThrow('No gift');
-
-    const withSoul: RunState = { ...newRun(99), shopOffers: ['secondSoul', 'loadedDie', 'crackedHalo'], grace: 2 };
-    const soulTaken = takeGift(withSoul, 'secondSoul');
-    expect(soulTaken.maxGrace).toBe(4);
-    expect(soulTaken.grace).toBe(3);
-
-    const fixed: RunState = { ...newRun(99), shopOffers: ['loadedDie', 'secondSoul', 'crackedHalo'] };
-    expect(() => takeGift(fixed, 'ferrymansCoin')).toThrow('Not offered');
-  });
-
-  it('cannot play a hand before taking the gift', () => {
-    const run = newRun(3);
-    expect(() => resolveHand(run, buildTrack(3), { bid: 0, taken: 0 })).toThrow();
-  });
 
   it('an instant relic (Embered Pact) applies at once and never sits in the tray', () => {
-    const withPact: RunState = { ...newRun(99), shopOffers: ['emberedPact', 'loadedDie', 'secondSoul'] };
-    const taken = takeGift(withPact, 'emberedPact');
-    expect(taken.relics).toEqual([]); // consumed immediately, not held
-    const enchanted = taken.deck.filter((c) => c.enchant === 'gilded');
+    const withPact: RunState = { ...atShop(50), shopOffers: ['emberedPact', 'loadedDie', 'secondSoul'] };
+    const bought = buyRelic(withPact, 'emberedPact');
+    expect(bought.relics).toEqual([]); // consumed immediately, not held
+    const enchanted = bought.deck.filter((c) => c.enchant === 'gilded');
     expect(enchanted.length).toBe(1);
+  });
+
+  it('rerolls the stock once per visit, for a cost', () => {
+    let run = atShop(50);
+    const before = run.shopOffers;
+    const souls = run.souls;
+    run = rerollShop(run);
+    expect(run.souls).toBe(souls - REROLL_COST);
+    expect(run.shopOffers).not.toEqual(before);
+    expect(() => rerollShop(run)).toThrow('Already rerolled');
+
+    const broke = { ...atShop(0), souls: REROLL_COST - 1 };
+    expect(() => rerollShop(broke)).toThrow('Not enough souls');
+
+    run = leaveShop(run);
+    run = { ...run, stopIndex: 5, demonHps: [1, 0] };
+    run = resolveHand(run, track, { bid: 0, taken: 0, target: 0 });
+    expect(run.phase).toBe('shop');
+    expect(run.shopRerolled).toBe(false); // the next shop gets its own fresh reroll
+  });
+});
+
+describe('a fresh run', () => {
+  it('opens straight on the map, no starting relic', () => {
+    const run = newRun(42);
+    expect(run.phase).toBe('map');
+    expect(run.relics).toEqual([]);
+    expect(run.shopOffers).toEqual([]);
   });
 });
 
@@ -546,7 +538,7 @@ describe('shop pacts', () => {
   });
 
   it('pacts are spent between fights, not mid-hand', () => {
-    const inHand: RunState = { ...startedRun(5), relics: ['pactSeal'], phase: 'gift' };
+    const inHand: RunState = { ...startedRun(5), relics: ['pactSeal'], phase: 'shop' };
     expect(() => usePactSeal(inHand, 'D7', 'marked')).toThrow('between fights');
   });
 });
@@ -660,7 +652,6 @@ describe('full runs (headless)', () => {
   it.each([1, 2, 3, 4, 5])('run with seed %i ends in death or paradise', (seed) => {
     const track = buildTrack(seed);
     let run = newRun(seed);
-    run = takeGift(run, run.shopOffers[0]);
     let guard = 0;
     while (run.phase === 'map' && guard++ < 300) {
       const living = run.demonHps.filter((hp) => hp > 0).length;

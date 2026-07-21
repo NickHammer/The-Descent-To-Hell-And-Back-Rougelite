@@ -163,6 +163,10 @@ balance/completability? ● strong · ◐ some · ○ little.
 | Wall power scaling: HP scales with damage relics owned | ○ | ● | P1 | ✅ shipped |
 | Ledger of Wrath streak cap (stop the snowball) | ○ | ◐ | P2 | ✅ shipped |
 | Relic-count badges (×N) in the tray and use-buttons | ○ | ○ | — | ✅ shipped |
+| Made-bid trickle: demon tricks still cost a little on a made bid | ◐ | ● | P1 | ✅ shipped |
+| Tier-weighted shop odds (rarer relics show up less) | ○ | ◐ | P2 | ✅ shipped |
+| Shop reroll (once per visit, for souls) | ◐ | ○ | P2 | ✅ shipped |
+| Removed the starting gift (no more free relic before stop 1) | ○ | ◐ | P2 | ✅ shipped |
 
 ### Engine relics (shipped)
 
@@ -294,6 +298,50 @@ miss-damage curve sane the same way `meanDamage` holds the strike curve — aver
 miss damage stays above 1 and below `PLAYER_MAX_HP` at every stop (empirically it
 peaks around 11.6 at The Bottom against 14 max HP, comfortable headroom against a
 one-hit kill without going toothless).
+
+### Made-bid trickle: the table still has teeth (shipped)
+
+Playtesting flagged a real hole: `scoreDemonStrike` only fired on a *miss*, so as
+long as your own `taken === bid`, however many tricks the demons stole around you
+that hand cost nothing — the imps could play sharp or play badly and it was
+invisible. `scoreMadeBidTrickle()` in `src/rogue/scoring.ts` closes it:
+
+```
+trickle = min(MADE_BID_TRICKLE_CAP, round(MADE_BID_TRICKLE_PER_DEMON_TRICK × demon tricks won))
+```
+
+Tuned constants: `MADE_BID_TRICKLE_PER_DEMON_TRICK = 0.5`, `MADE_BID_TRICKLE_CAP = 4`.
+Deliberately flat — no base chips, no mult — so a made bid stays clearly the safe
+line; it's a nick, not a threat on its own. `resolveHand()`'s made-bid branch
+applies it after the strike lands (Ashen Shield still floors it at 1 when it fires
+at all), through the same `settleDamage()` grace/death path the miss branch uses —
+a made bid can, in the unlucky edge case of a near-dead player and a table that
+stole most of the hand, still cost a grace or end the run. `pacing.test.ts`'s
+`meanMadeTrickle` probe holds it small everywhere (empirically 0.8–3.8 across the
+whole track, always well under a miss's damage at the same stop).
+
+### Shop: tier-weighted odds, reroll, no more starting gift (shipped)
+
+Three changes to how relics reach the player, `src/rogue/run.ts`:
+
+- **Rarity now means something.** `RelicTier` sat on every relic unused —
+  `shopStock()` picked uniformly at random regardless of tier. `TIER_WEIGHT` in
+  `relics.ts` (`common: 10, uncommon: 5, rare: 2, legendary: 1`) now drives a
+  weighted, without-replacement draw (`pickWeighted()` in `rng.ts`) for the shop's
+  three slots. Trump Vision moved `uncommon → rare` (cost 12 → 14) as part of this —
+  full trump information for the whole table was underpriced for how much it
+  collapses your miss rate.
+- **One reroll per shop visit.** `rerollShop()` spends `REROLL_COST` (6) souls for
+  a fresh weighted draw; `RunState.shopRerolled` gates it to one use, reset when a
+  new shop opens (`advance()`) or the current one closes (`leaveShop()`). Uses the
+  same seeded `shopStock()` with a salt so the reroll is deterministic too, just
+  from a different draw than the original visit.
+- **No more starting gift.** Every run used to open with a forced choice of one
+  free relic (`giftOffers()` / `takeGift()`, the `'gift'` phase) before stop 1.
+  Removed outright — `newRun()` now lands straight on the map with zero relics
+  (deck-identity relics like Ashen's Ember Brand + Ashen Shield are unaffected,
+  those are the deck's own hook, not the universal freebie). Old saves parked in
+  `'gift'` migrate to `'map'` on load (`RunApp.tsx`'s `loadRun()`).
 
 ### Sphere 9: the Warden (shipped)
 

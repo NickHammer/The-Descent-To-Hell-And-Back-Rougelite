@@ -11,7 +11,7 @@ import { PlayerInfo } from '../shared/types.js';
 import { mulberry32 } from './rng.js';
 import { RelicId } from './relics.js';
 import { buildTrack, demonMaxHpsFor, PLAYER_MAX_HP, StopDef } from './run.js';
-import { scoreDemonStrike, scoreStrike } from './scoring.js';
+import { scoreDemonStrike, scoreMadeBidTrickle, scoreStrike } from './scoring.js';
 
 const REPS = 120;
 
@@ -89,6 +89,40 @@ function meanMissDamage(stop: StopDef, seedBase: number): number {
   return misses === 0 ? 0 : sum / misses;
 }
 
+/** Mean made-bid trickle damage per made hand at a stop (misses land 0 here — that's `meanMissDamage`'s job). */
+function meanMadeTrickle(stop: StopDef, seedBase: number): number {
+  let sum = 0;
+  let makes = 0;
+  for (let rep = 0; rep < REPS; rep++) {
+    const rng = mulberry32(seedBase + rep * 101);
+    const seatCount = stop.demonCount + 1;
+    const players: PlayerInfo[] = Array.from({ length: seatCount }, (_, i) => ({
+      name: i === 0 ? 'You' : `Demon ${i}`,
+      isBot: i > 0,
+      connected: true
+    }));
+    const state = newGame({ seatCount, maxHandSize: stop.handSize, hookRule: false }, players);
+    state.handIndex = stop.handSize - 2;
+    startNextHand(state, rng);
+    while (state.phase === 'bidding') placeBid(state, state.turn, chooseBid(state, state.turn));
+    while (state.phase === 'playing' || state.trickWinner !== null) {
+      if (state.trickWinner !== null) collectTrick(state);
+      else playCard(state, state.turn, chooseCard(state, state.turn).id);
+    }
+    const { bids, taken } = state.history[0];
+    if (bids[0] !== taken[0]) continue; // a miss strikes the player through meanMissDamage, not here
+    const demonWins = state.trickLog
+      .filter((t) => t.winner !== 0)
+      .map((t) => {
+        const card = t.cards.find((tc) => tc.seat === t.winner)!.card;
+        return { rank: card.rank, suit: card.suit, trump: card.suit === t.trumpSuit };
+      });
+    sum += scoreMadeBidTrickle(demonWins);
+    makes++;
+  }
+  return makes === 0 ? 0 : sum / makes;
+}
+
 describe('battle pacing (headless probe)', () => {
   it('every gate falls in a sane number of average hands, and the wall climbs', () => {
     const track = buildTrack(2026);
@@ -152,6 +186,23 @@ describe('battle pacing (headless probe)', () => {
       // a guaranteed full-HP kill, and should always draw some blood.
       expect(c.dmg, `${c.stop} miss too soft`).toBeGreaterThan(1);
       expect(c.dmg, `${c.stop} miss too harsh`).toBeLessThan(PLAYER_MAX_HP);
+    }
+  });
+
+  it('a made bid still stings a little if the table steals tricks, but stays the safe line', () => {
+    const track = buildTrack(2026);
+    const curve = track.map((stop) => ({
+      stop: stop.label,
+      trickle: meanMadeTrickle(stop, 999_000 + stop.index * 10_007)
+    }));
+    if (process.env.PACING_LOG) {
+      // eslint-disable-next-line no-console
+      console.table(curve.map((c) => ({ ...c, trickle: Math.round(c.trickle * 10) / 10 })));
+    }
+    for (const c of curve) {
+      // Made bids must stay clearly safer than a miss: the trickle is a
+      // nick, not a real threat on its own, at every stop.
+      expect(c.trickle, `${c.stop} made-bid trickle too harsh`).toBeLessThan(4);
     }
   });
 });

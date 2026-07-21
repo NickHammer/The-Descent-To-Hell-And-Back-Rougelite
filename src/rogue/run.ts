@@ -7,13 +7,21 @@ import { buildDeck } from '../shared/engine.js';
 import { Card, rankLabel, SUIT_NAMES } from '../shared/types.js';
 import { DeckId, DECKS } from './decks.js';
 import { DemonId, demonPool, rosterFor } from './demons.js';
-import { ALL_RELIC_IDS, CRACKED_HALO_CHARGES_PER_GATE, RELICS, RELIQUARY_HP_PER_FELL, RelicId } from './relics.js';
-import { mulberry32, pick } from './rng.js';
+import {
+  ALL_RELIC_IDS,
+  CRACKED_HALO_CHARGES_PER_GATE,
+  RELICS,
+  RELIQUARY_HP_PER_FELL,
+  RelicId,
+  TIER_WEIGHT
+} from './relics.js';
+import { mulberry32, pick, pickWeighted } from './rng.js';
 import {
   DemonStrikeScore,
   ENCHANTMENTS,
   EnchantId,
   scoreDemonStrike,
+  scoreMadeBidTrickle,
   scoreStrike,
   StrikeScore,
   TrickWin
@@ -119,7 +127,7 @@ export interface StopDef {
   shopAfter: boolean; // a shop opens after clearing this stop
 }
 
-export type RunPhase = 'gift' | 'map' | 'shop' | 'dead' | 'won';
+export type RunPhase = 'map' | 'shop' | 'dead' | 'won';
 
 export interface RunState {
   seed: number;
@@ -135,6 +143,8 @@ export interface RunState {
   attempts: number; // hands played this run (also salts per-hand deals)
   phase: RunPhase;
   shopOffers: RelicId[];
+  /** Whether the current shop visit has already spent its one reroll (see `rerollShop`). */
+  shopRerolled: boolean;
   log: string[];
   /**
    * The persistent 52-card deck, carried and reshuffled at every gate. Cards
@@ -152,6 +162,7 @@ export interface RunState {
   lastHand: {
     made: boolean;
     dmgDealt: number;
+    /** miss-strike damage on a miss; the small made-bid trickle (see `scoreMadeBidTrickle`) on a made bid */
     dmgTaken: number;
     respawned: boolean;
     won: boolean;
@@ -204,9 +215,10 @@ export function newRun(seed = Math.floor(Math.random() * 2 ** 31), deckId: DeckI
     souls: deckDef.startSouls ?? 0,
     relics: [],
     attempts: 0,
-    phase: 'gift',
-    shopOffers: giftOffers(seed),
-    log: ['You wake at the gate. Something has left you a gift.'],
+    phase: 'map',
+    shopOffers: [],
+    shopRerolled: false,
+    log: ['You wake at the gate.'],
     deck: buildDeck(),
     crackedHaloCharges: CRACKED_HALO_CHARGES_PER_GATE,
     madeStreak: 0,
@@ -332,38 +344,6 @@ export function usePactEcho(run: RunState, cardId: string): RunState {
   };
 }
 
-const INFO_RELICS: RelicId[] = ['loadedDie', 'graveLedger'];
-
-/**
- * Every run opens with a choice of one of three relics — an information relic
- * is always among them, so the blind stretch (circles 4-6, crossed on carried
- * grace with no shop in between) always has counterplay on offer.
- */
-export function giftOffers(seed: number): RelicId[] {
-  const rng = mulberry32(seed ^ 0x51f7);
-  const offers = [pick(rng, INFO_RELICS)];
-  while (offers.length < 3) {
-    const candidate = pick(rng, ALL_RELIC_IDS);
-    if (!offers.includes(candidate)) offers.push(candidate);
-  }
-  return offers;
-}
-
-export function takeGift(run: RunState, id: RelicId): RunState {
-  if (run.phase !== 'gift') throw new Error('No gift to take');
-  if (!run.shopOffers.includes(id)) throw new Error('Not offered');
-  const next: RunState = {
-    ...run,
-    phase: 'map',
-    shopOffers: [],
-    relics: [...run.relics, id],
-    log: [...run.log, `You take the ${RELICS[id].name}. The gate opens.`]
-  };
-  applyRelicEffects(next, id);
-  if (RELICS[id].instant) next.relics = next.relics.slice(0, -1);
-  return next;
-}
-
 /** Immediate (non-passive) effects a relic applies when gained. */
 function applyRelicEffects(run: RunState, id: RelicId): void {
   if (id === 'secondSoul') {
@@ -398,11 +378,35 @@ export function isTrumpBlind(handSize: number): boolean {
 }
 
 /**
+ * Apply damage to the player's HP; on lethal, catches with grace (-1 grace,
+ * full HP) unless grace is spent, which ends the run. Mutates `next` in
+ * place; shared by both the miss strike and the made-bid trickle below so
+ * the grace/death rule only lives in one place.
+ */
+function settleDamage(next: RunState, dmg: number): 'alive' | 'respawned' | 'dead' {
+  if (dmg <= 0) return 'alive';
+  next.hp -= dmg;
+  if (next.hp > 0) return 'alive';
+  next.hp = 0;
+  next.grace -= 1;
+  if (next.grace <= 0) {
+    next.grace = 0;
+    next.phase = 'dead';
+    return 'dead';
+  }
+  next.hp = next.maxHp;
+  return 'respawned';
+}
+
+/**
  * Apply the outcome of a played hand at the current stop's battle.
  * Made bid → a scored strike at a chosen living demon: (base + trick chips)
  * × bid mult (see scoring.ts); fell it and it leaves the table. The gate
  * clears when every demon is down. Consecutive makes feed Ledger of Wrath;
- * a fell demon feeds Reliquary's permanent max-HP gain.
+ * a fell demon feeds Reliquary's permanent max-HP gain. The table still
+ * claws back a small flat nick per trick the demons won this hand, even
+ * though you made your bid (see `scoreMadeBidTrickle`) — otherwise how well
+ * the demons played was invisible as long as your own count landed.
  * Missed → the table strikes back, scored the same way: (base + demon
  * tricks) × miss mult (see `scoreDemonStrike`) — the Usurer doubles it while
  * it lives, Ashen Shield blocks, Cracked Halo voids a miss-by-one both ways
@@ -443,12 +447,35 @@ export function resolveHand(
       if (run.relics.includes('reliquary')) next.maxHp += RELIQUARY_HP_PER_FELL;
       next.hp = Math.min(next.maxHp, next.hp + FELL_HEAL);
     }
+
+    let trickle = scoreMadeBidTrickle(outcome.demonWins ?? []);
+    if (trickle > 0 && run.relics.includes('ashenShield')) trickle = Math.max(1, trickle - ASHEN_SHIELD_BLOCK);
+    const trickleResult = settleDamage(next, trickle);
+
+    if (trickleResult === 'dead') {
+      next.lastHand = {
+        made,
+        dmgDealt: dmg,
+        dmgTaken: trickle,
+        respawned: false,
+        won: false,
+        targetName,
+        felled,
+        score
+      };
+      next.log.push(
+        `${targetName} takes ${dmg}${felled ? ', and falls' : ''} — but the table claws back ${trickle} as ` +
+          `you strike. You fall at ${stop.label}. Your last grace gutters out. The pit keeps you.`
+      );
+      return next;
+    }
+
     const won = next.demonHps.every((hp) => hp === 0);
     next.lastHand = {
       made,
       dmgDealt: dmg,
-      dmgTaken: 0,
-      respawned: false,
+      dmgTaken: trickle,
+      respawned: trickleResult === 'respawned',
       won,
       targetName,
       felled,
@@ -461,6 +488,13 @@ export function resolveHand(
           stop.region === 'bottom' ? ` souls and a ${BOSS_BOUNTY}-soul bounty` : ' souls'
         }.`
       );
+      if (trickle > 0) {
+        next.log.push(
+          trickleResult === 'respawned'
+            ? `The table claws back ${trickle} as you strike — grace catches you. -1 grace (${next.grace} left).`
+            : `The table claws back ${trickle} as you strike.`
+        );
+      }
       return advance(next, track, stop);
     }
     next.log.push(
@@ -470,6 +504,13 @@ export function resolveHand(
     );
     if (felled && target === 0) {
       next.log.push(`The table's master is slain — its rule dies with it.`);
+    }
+    if (trickle > 0) {
+      next.log.push(
+        trickleResult === 'respawned'
+          ? `The table claws back ${trickle} as you strike — grace catches you. -1 grace (${next.grace} left).`
+          : `The table claws back ${trickle} as you strike (${next.hp} HP left).`
+      );
     }
     return next;
   }
@@ -489,28 +530,23 @@ export function resolveHand(
   let dmg = demonScore.total;
   if (stop.demonId === 'usurer' && leadAlive(run)) dmg *= 2;
   if (run.relics.includes('ashenShield')) dmg = Math.max(1, dmg - ASHEN_SHIELD_BLOCK);
-  next.hp -= dmg;
-  if (next.hp > 0) {
-    next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: false, won: false, demonScore };
-    next.log.push(
-      `Missed at ${stop.label}: bid ${outcome.bid}, took ${outcome.taken}. ${dmg} damage, ${next.hp} HP left.`
-    );
-    return next;
-  }
+  const result = settleDamage(next, dmg);
 
-  next.hp = 0;
-  next.grace -= 1;
-  if (next.grace <= 0) {
-    next.grace = 0;
-    next.phase = 'dead';
+  if (result === 'dead') {
     next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: false, won: false, demonScore };
     next.log.push(`You fall at ${stop.label}. Your last grace gutters out. The pit keeps you.`);
     return next;
   }
-  next.hp = next.maxHp;
-  next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: true, won: false, demonScore };
+  if (result === 'respawned') {
+    next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: true, won: false, demonScore };
+    next.log.push(
+      `You fall at ${stop.label} — grace catches you. -1 grace (${next.grace} left), and the fight goes on.`
+    );
+    return next;
+  }
+  next.lastHand = { made, dmgDealt: 0, dmgTaken: dmg, respawned: false, won: false, demonScore };
   next.log.push(
-    `You fall at ${stop.label} — grace catches you. -1 grace (${next.grace} left), and the fight goes on.`
+    `Missed at ${stop.label}: bid ${outcome.bid}, took ${outcome.taken}. ${dmg} damage, ${next.hp} HP left.`
   );
   return next;
 }
@@ -530,23 +566,45 @@ function advance(run: RunState, track: StopDef[], stop: StopDef): RunState {
   if (stop.shopAfter) {
     run.phase = 'shop';
     run.shopOffers = shopStock(run);
+    run.shopRerolled = false;
     run.log.push('A lantern in the dark: a shop.');
   }
   return run;
 }
 
-/** Three unowned relics, seeded per visit. */
-function shopStock(run: RunState): RelicId[] {
-  const rng = mulberry32(run.seed ^ (run.stopIndex * 7919));
-  const available = ALL_RELIC_IDS.filter(
-    (id) => !run.relics.includes(id) || RELICS[id].consumable
-  );
+/**
+ * Three unowned relics, seeded per visit, weighted by tier (`TIER_WEIGHT`) so
+ * common relics show up most and legendary rarest. `salt` distinguishes a
+ * reroll's draw from the original visit's without changing either's
+ * determinism from the run seed (see `rerollShop`).
+ */
+function shopStock(run: RunState, salt = 0): RelicId[] {
+  const rng = mulberry32(run.seed ^ (run.stopIndex * 7919) ^ (salt * 104729));
+  let available = ALL_RELIC_IDS.filter((id) => !run.relics.includes(id) || RELICS[id].consumable);
   const stock: RelicId[] = [];
-  while (stock.length < 3 && stock.length < available.length) {
-    const candidate = pick(rng, available);
-    if (!stock.includes(candidate)) stock.push(candidate);
+  while (stock.length < 3 && available.length > 0) {
+    const candidate = pickWeighted(rng, available, (id) => TIER_WEIGHT[RELICS[id].tier]);
+    stock.push(candidate);
+    available = available.filter((id) => id !== candidate);
   }
   return stock;
+}
+
+/** Rerolling the shop costs souls but leaves with a fresh weighted draw — one use per visit. */
+export const REROLL_COST = 6;
+
+export function rerollShop(run: RunState): RunState {
+  if (run.phase !== 'shop') throw new Error('No shop here');
+  if (run.shopRerolled) throw new Error('Already rerolled this shop');
+  if (run.souls < REROLL_COST) throw new Error('Not enough souls');
+  const next: RunState = {
+    ...run,
+    souls: run.souls - REROLL_COST,
+    shopRerolled: true,
+    log: [...run.log, `Spent ${REROLL_COST} souls to reroll the shop.`]
+  };
+  next.shopOffers = shopStock(next, 1);
+  return next;
 }
 
 export function buyRelic(run: RunState, id: RelicId): RunState {
@@ -580,7 +638,7 @@ export function buyHeal(run: RunState): RunState {
 
 export function leaveShop(run: RunState): RunState {
   if (run.phase !== 'shop') throw new Error('No shop here');
-  return { ...run, phase: 'map', shopOffers: [] };
+  return { ...run, phase: 'map', shopOffers: [], shopRerolled: false };
 }
 
 /**

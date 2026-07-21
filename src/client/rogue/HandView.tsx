@@ -751,6 +751,11 @@ function BattleReport({
             <b>{lh.dmgDealt}</b> damage fells {lh.targetName}, the last of them. The gate opens.
           </p>
         )}
+        {scoreDone && lh.made && !lh.won && !lh.respawned && !dead && lh.dmgTaken > 0 && (
+          <p className="winner-line">
+            The table claws back <b>{lh.dmgTaken}</b> as you strike — {report.hp}/{report.maxHp} HP left.
+          </p>
+        )}
         {!lh.made && lh.dmgTaken === 0 && (
           <p className="winner-line">The Cracked Halo holds — no blood drawn.</p>
         )}

@@ -13,3 +13,14 @@ export function mulberry32(seed: number): () => number {
 export function pick<T>(rng: () => number, items: readonly T[]): T {
   return items[Math.floor(rng() * items.length)];
 }
+
+/** Pick one item, weighted (e.g. rarer relic tiers show up less often). */
+export function pickWeighted<T>(rng: () => number, items: readonly T[], weight: (item: T) => number): T {
+  const total = items.reduce((sum, item) => sum + weight(item), 0);
+  let roll = rng() * total;
+  for (const item of items) {
+    roll -= weight(item);
+    if (roll < 0) return item;
+  }
+  return items[items.length - 1];
+}

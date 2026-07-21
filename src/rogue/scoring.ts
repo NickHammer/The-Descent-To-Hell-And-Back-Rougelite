@@ -172,3 +172,20 @@ export function scoreDemonStrike(demonWins: TrickWin[], missBy: number): DemonSt
     total: Math.round(chips * mult)
   };
 }
+
+/** Damage per demon trick win, even on a made bid. */
+export const MADE_BID_TRICKLE_PER_DEMON_TRICK = 0.5;
+/** A made bid stays the safe line — this can never spike past a small nick. */
+export const MADE_BID_TRICKLE_CAP = 4;
+
+/**
+ * A made bid strikes the table (see `scoreStrike`), but a demon that stole
+ * tricks around your made count used to cost you nothing — the imps could
+ * play the hand well or badly and it never showed. This is the counterweight:
+ * flat, small, no base chips, no mult, capped well under a full miss — so
+ * making your bid stays clearly the safe line, but a table that steals half
+ * the hand around you still draws a little blood.
+ */
+export function scoreMadeBidTrickle(demonWins: TrickWin[]): number {
+  return Math.min(MADE_BID_TRICKLE_CAP, Math.round(MADE_BID_TRICKLE_PER_DEMON_TRICK * demonWins.length));
+}

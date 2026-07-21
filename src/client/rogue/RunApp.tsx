@@ -22,10 +22,11 @@ import {
   leaveShop,
   newRun,
   Region,
+  REROLL_COST,
+  rerollShop,
   resolveHand,
   RunState,
   STOP_COUNT,
-  takeGift,
   useFerrymansCoin,
   usePactEcho,
   usePactRuin,
@@ -61,6 +62,12 @@ function loadRun(): RunState | null {
     run.crackedHaloCharges ??= CRACKED_HALO_CHARGES_PER_GATE;
     run.madeStreak ??= 0;
     run.deckId ??= 'standard';
+    run.shopRerolled ??= false;
+    // Saves from before the starting gift was removed may still be sitting in it.
+    if ((run.phase as string) === 'gift') {
+      run.phase = 'map';
+      run.shopOffers = [];
+    }
     return run;
   } catch {
     return null;
@@ -110,8 +117,6 @@ export function RunApp() {
         devWin={() => devClearGate(run, track)}
       />
     );
-  } else if (run.phase === 'gift') {
-    view = <GiftView run={run} onChange={update} onAbandon={() => setRun(null)} />;
   } else if (run.phase === 'shop') {
     view = <ShopView run={run} onChange={update} />;
   } else if (run.phase === 'dead' || run.phase === 'won') {
@@ -283,9 +288,8 @@ function StartView({ onStart }: { onStart: (deckId: DeckId) => void }) {
             On hands of <b>4+ cards</b> the trump stays <b>face-down while you bid</b> — the
             demons can see it. Small hands play fair. Relics help.
           </li>
-          <li>Souls buy relics and grace at shops every third gate.</li>
+          <li>Souls buy relics and grace at shops every third gate — reroll the stock once per visit.</li>
           <li>Each demon warps one rule — it's shown before you play.</li>
-          <li>You begin with a <b>gift</b>: one of three relics, yours to choose.</li>
           <li>
             Your deck is real and persistent — enchantments (and the odd demon's curse) ride the
             cards for the whole run.
@@ -518,44 +522,6 @@ function DeckPanel({ run, onChange }: { run: RunState; onChange: (r: RunState) =
   );
 }
 
-function GiftView({
-  run,
-  onChange,
-  onAbandon
-}: {
-  run: RunState;
-  onChange: (r: RunState) => void;
-  onAbandon: () => void;
-}) {
-  return (
-    <div className="home rogue-gift">
-      <h1 className="title">A Gift at the Gate</h1>
-      <p className="subtitle">
-        Someone — something — left these for you. Take one. The road below is blind and hungry.
-      </p>
-      <div className="panel">
-        {run.shopOffers.map((id) => {
-          const r = RELICS[id];
-          return (
-            <div key={id} className={`rogue-offer tier-${r.tier}`}>
-              <div>
-                <b>{r.name}</b> <span className="tier-chip">{r.tier}</span>
-                <div className="rogue-flavor">{r.effect}</div>
-              </div>
-              <button className="btn btn-primary" onClick={() => onChange(takeGift(run, id))}>
-                Take
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <button className="btn rogue-abandon" onClick={onAbandon}>
-        Turn back from the gate
-      </button>
-    </div>
-  );
-}
-
 function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) => void }) {
   const [cleansing, setCleansing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -587,6 +553,21 @@ function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
           );
         })}
         {run.shopOffers.length === 0 && <p className="muted">Sold out.</p>}
+        <div className="rogue-offer">
+          <div>
+            <b>Reroll the stock</b>
+            <div className="rogue-flavor">
+              {run.shopRerolled ? 'Already spent this visit.' : 'A fresh draw, once per visit.'}
+            </div>
+          </div>
+          <button
+            className="btn"
+            disabled={run.shopRerolled || run.souls < REROLL_COST}
+            onClick={() => onChange(rerollShop(run))}
+          >
+            ✦ {REROLL_COST}
+          </button>
+        </div>
         <div className="rogue-offer">
           <div>
             <b>Restore 1 grace</b>
