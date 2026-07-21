@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { DEMONS, rosterFor } from '../../rogue/demons.js';
 import { RelicId } from '../../rogue/relics.js';
 import { FELL_HEAL, isTrumpBlind, RunState, StopDef } from '../../rogue/run.js';
-import { SUIT_GLYPHS, SUIT_NAMES } from '../../shared/types.js';
+import { enchantTitle, StrikeScore, TrickWin } from '../../rogue/scoring.js';
+import { Card, rankLabel, Suit, SUIT_GLYPHS, SUIT_NAMES } from '../../shared/types.js';
 import { CardView } from '../components.js';
 import { RelicTray } from './RelicTray.js';
 import { useLocalHand } from './useLocalHand.js';
+
+const ANCHOR_SUITS: Suit[] = ['S', 'H', 'D', 'C'];
 
 export function HandView({
   stop,
@@ -18,9 +21,11 @@ export function HandView({
   souls,
   playerName,
   seed,
+  deck,
   resolve,
   onContinue,
   onQuit,
+  onConsumeRelic,
   devWin
 }: {
   stop: StopDef;
@@ -33,27 +38,73 @@ export function HandView({
   souls: number;
   playerName: string;
   seed: number;
+  /** the run's persistent 52-card deck (enchantments ride along) */
+  deck: Card[];
   /** pure battle resolution for a finished hand, so the modal can report it */
-  resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
+  resolve: (outcome: {
+    bid: number;
+    taken: number;
+    target?: number;
+    wins?: TrickWin[];
+    demonWins?: TrickWin[];
+  }) => RunState;
   onContinue: (resolved: RunState) => void;
   onQuit: () => void;
+  /** removes one instance of a consumable relic immediately, mid-hand (e.g. Trump Anchor) */
+  onConsumeRelic: (id: RelicId) => void;
   /** TEMPORARY dev shortcut: the gate resolved as if every demon fell */
   devWin: () => RunState;
 }) {
   const [devReport, setDevReport] = useState<RunState | null>(null);
-  const hand = useLocalHand(stop, demonHps, playerName, seed);
+  const hand = useLocalHand(stop, demonHps, playerName, seed, deck);
   const { state } = hand;
   const demon = DEMONS[stop.demonId];
   const roster = rosterFor(stop);
   const leadAliveNow = demonHps[0] > 0;
+  // Pre-selected strike target, à la Slay the Spire: click a demon any time
+  // this hand to mark them, change your mind as often as you like — locks in
+  // automatically the moment a made bid resolves (see BattleReport below).
+  const livingRoster = roster.map((_, ri) => ri).filter((ri) => demonHps[ri] > 0);
+  const [target, setTarget] = useState<number | null>(livingRoster.length === 1 ? livingRoster[0] : null);
   const bidding = state.phase === 'bidding';
   const myTurn = state.turn === 0;
   const trumpHidden = bidding && isTrumpBlind(stop.handSize) && !relics.includes('loadedDie');
+  const [anchorPicking, setAnchorPicking] = useState(false);
+  const canAnchor = relics.includes('trumpAnchor') && !hand.trumpLocked && !hand.result;
+
+  // A card's enchant effect, on hover: a small floating tooltip anchored to
+  // whichever card triggered it. Positioned via getBoundingClientRect and
+  // rendered `position: fixed` so it escapes the hand fan's overflow clip
+  // instead of a CSS-only :hover trick, which would get cut off there.
+  const [cardTip, setCardTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const showCardTip = (e: React.MouseEvent, enchant?: string) => {
+    const text = enchantTitle(enchant);
+    if (!text) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setCardTip({ text, x: rect.left + rect.width / 2, y: rect.top });
+  };
+  const hideCardTip = () => setCardTip(null);
   const hideBids = stop.demonId === 'liar' && leadAliveNow && !hand.result;
   const hideTaken = stop.demonId === 'hoarder' && leadAliveNow && !hand.result;
   const myBid = state.bids[0];
   const bidDead =
     state.phase === 'playing' && myBid !== null && state.tricksTaken[0] > myBid && !hand.result;
+
+  // Who acts (or leads) next, so the table stays legible instead of a surprise.
+  // A completed trick pauses on the table (turn === -1) until it's collected —
+  // the winner leads the next one, so that's who's "next" during the pause.
+  // When the current player is the trick's last to act, nobody's "next" yet —
+  // it depends on the card they play, which hasn't happened.
+  const lastToActThisTrick = !bidding && state.trick.length === state.players.length - 1;
+  const nextSeat = hand.result
+    ? -1
+    : state.trickWinner !== null
+      ? state.trickWinner
+      : state.turn === -1 || lastToActThisTrick
+        ? -1
+        : bidding && state.turn === state.dealer
+          ? state.trickLeader
+          : (state.turn + 1) % state.players.length;
 
   // Player-chosen card order: starts from the auto-sort, then drag to taste.
   const fanRef = useRef<HTMLDivElement>(null);
@@ -120,12 +171,31 @@ export function HandView({
           return (
             <div
               key={seatDef.name}
-              className={`player-badge demon-card ${seat === state.turn ? 'player-turn' : ''}`}
+              className={[
+                'player-badge demon-card',
+                seat === state.turn ? 'player-turn' : '',
+                !hand.result ? 'targetable' : '',
+                ri === target ? 'target-marked' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title={!hand.result ? `Strike ${seatDef.name} if the bid is made` : undefined}
+              onClick={!hand.result ? () => setTarget(ri) : undefined}
             >
+              {ri === target && (
+                <span className="target-mark" title="Marked for the strike">
+                  ⚔
+                </span>
+              )}
               <div className="player-name">
                 {seatDef.isLead && <span title="Lead demon — its quirk dies with it">♛</span>}
                 {seatDef.name}
                 {seat === state.dealer && <span className="dealer-chip" title="Dealer">D</span>}
+                {seat === nextSeat && (
+                  <span className="next-chip" title={state.trickWinner !== null ? 'Leads next' : 'Acts next'}>
+                    ▸ next
+                  </span>
+                )}
               </div>
               <div className="hp-label">
                 💀 {demonHps[ri]}/{demonMaxHps[ri]}
@@ -226,7 +296,12 @@ export function HandView({
                 key={tc.card.id}
                 className={`trick-card ${state.trickWinner === tc.seat ? 'trick-winner' : ''}`}
               >
-                <CardView card={tc.card} size="lg" />
+                <CardView
+                  card={tc.card}
+                  size="lg"
+                  onMouseEnter={(e) => showCardTip(e, tc.card.enchant)}
+                  onMouseLeave={hideCardTip}
+                />
                 <div className="trick-name">
                   {state.players[tc.seat].name}
                   {i === 0 && <span className="led-chip">led</span>}
@@ -248,16 +323,56 @@ export function HandView({
             <span className="card card-md rogue-card-back" title="Face-down until bids are locked" />
           ) : (
             <>
-              <CardView card={state.trumpCard!} size="md" />
+              <CardView
+                card={state.trumpCard!}
+                size="md"
+                onMouseEnter={(e) => showCardTip(e, state.trumpCard!.enchant)}
+                onMouseLeave={hideCardTip}
+              />
               <span className="trump-name">{SUIT_NAMES[state.trumpCard!.suit]}</span>
             </>
           )}
         </div>
+        {canAnchor &&
+          (!anchorPicking ? (
+            <button className="btn rogue-quit" onClick={() => setAnchorPicking(true)}>
+              🔒 Trump Anchor
+              {relics.filter((r) => r === 'trumpAnchor').length > 1 &&
+                ` (×${relics.filter((r) => r === 'trumpAnchor').length})`}
+            </button>
+          ) : (
+            <div className="bid-picker">
+              <div className="bid-label">Lock trump to:</div>
+              <div className="bid-buttons">
+                {ANCHOR_SUITS.map((s) => (
+                  <button
+                    key={s}
+                    className="btn bid-btn"
+                    onClick={() => {
+                      hand.lockTrump(s);
+                      onConsumeRelic('trumpAnchor');
+                      setAnchorPicking(false);
+                    }}
+                  >
+                    {SUIT_GLYPHS[s]} {SUIT_NAMES[s]}
+                  </button>
+                ))}
+                <button className="btn" onClick={() => setAnchorPicking(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
         <div className={`player-badge you-card ${state.turn === 0 ? 'player-turn' : ''}`}>
           <div className="player-name">
             {playerName || 'You'}
             <span className="you-tag"> (you)</span>
             {state.dealer === 0 && <span className="dealer-chip" title="Dealer">D</span>}
+            {nextSeat === 0 && (
+              <span className="next-chip" title={state.trickWinner !== null ? 'You lead next' : 'You act next'}>
+                ▸ next
+              </span>
+            )}
           </div>
           <div className="hp-label">
             ❤ {hp}/{maxHp}
@@ -325,6 +440,8 @@ export function HandView({
                     : undefined
                 }
                 onPointerDown={drag.arm(card.id)}
+                onMouseEnter={(e) => showCardTip(e, card.enchant)}
+                onMouseLeave={hideCardTip}
                 style={{
                   animationDelay: `${i * 45}ms`,
                   ...(lifted ? { opacity: 0.35 } : {})
@@ -337,7 +454,7 @@ export function HandView({
 
       {drag.dragId && drag.pos && byId.has(drag.dragId) && (
         <div className="card-ghost" style={{ left: drag.pos.x, top: drag.pos.y }}>
-          <CardView card={byId.get(drag.dragId)!} size="lg" />
+          <CardView card={byId.get(drag.dragId)!} size="lg" title={enchantTitle(byId.get(drag.dragId)!.enchant)} />
         </div>
       )}
 
@@ -361,8 +478,15 @@ export function HandView({
           roster={roster}
           demonHps={demonHps}
           demonMaxHps={demonMaxHps}
+          preselectedTarget={target}
           onContinue={onContinue}
         />
+      )}
+
+      {cardTip && (
+        <div className="card-hover-tip" style={{ left: cardTip.x, top: cardTip.y }}>
+          {cardTip.text}
+        </div>
       )}
     </div>
   );
@@ -530,20 +654,34 @@ function BattleReport({
   roster,
   demonHps,
   demonMaxHps,
+  preselectedTarget,
   onContinue
 }: {
-  outcome: { bid: number; taken: number };
-  resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
+  outcome: { bid: number; taken: number; wins: TrickWin[]; demonWins: TrickWin[] };
+  resolve: (outcome: {
+    bid: number;
+    taken: number;
+    target?: number;
+    wins?: TrickWin[];
+    demonWins?: TrickWin[];
+  }) => RunState;
   roster: ReturnType<typeof rosterFor>;
   demonHps: number[];
   demonMaxHps: number[];
+  /** the demon marked during the hand (see HandView), used if it's still standing */
+  preselectedTarget: number | null;
   onContinue: (resolved: RunState) => void;
 }) {
   const made = outcome.bid === outcome.taken;
   const living = demonHps.map((hp, i) => (hp > 0 ? i : -1)).filter((i) => i >= 0);
-  const [target, setTarget] = useState<number | null>(
-    made && living.length === 1 ? living[0] : null
-  );
+  const [target, setTarget] = useState<number | null>(() => {
+    if (!made) return null;
+    if (living.length === 1) return living[0];
+    if (preselectedTarget !== null && living.includes(preselectedTarget)) return preselectedTarget;
+    return null;
+  });
+  // The score-off plays before the report lines land; a click skips it.
+  const [scoreDone, setScoreDone] = useState(!made);
 
   if (made && target === null) {
     return (
@@ -574,31 +712,41 @@ function BattleReport({
     <div className="modal-backdrop">
       <div className="modal">
         <h2>
-          {lh.won
-            ? '☠ The table is cleared'
-            : lh.felled
-              ? `☠ ${lh.targetName} falls`
-              : lh.made
-                ? '⚔ Bid made'
-                : '✗ Bid missed'}
+          {!scoreDone
+            ? '⚔ Bid made'
+            : lh.won
+              ? '☠ The table is cleared'
+              : lh.felled
+                ? `☠ ${lh.targetName} falls`
+                : lh.made
+                  ? '⚔ Bid made'
+                  : '✗ Bid missed'}
         </h2>
         <p className="winner-line">
           You bid <b>{outcome.bid}</b> and took <b>{outcome.taken}</b>.
         </p>
-        {lh.made && !lh.won && !lh.felled && (
+        {lh.made && lh.score && (
+          <ScoreOff
+            score={lh.score}
+            wins={outcome.wins}
+            done={scoreDone}
+            onDone={() => setScoreDone(true)}
+          />
+        )}
+        {scoreDone && lh.made && !lh.won && !lh.felled && (
           <p className="winner-line">
             <b>{lh.dmgDealt}</b> damage — {lh.targetName} has{' '}
             <b>{report.demonHps[target!]}</b> HP left.
           </p>
         )}
-        {lh.made && lh.felled && !lh.won && (
+        {scoreDone && lh.made && lh.felled && !lh.won && (
           <p className="winner-line">
             <b>{lh.dmgDealt}</b> damage. {lh.targetName} leaves the table
             {target === 0 && ' — its rule dies with it'}. A bite of its soul restores{' '}
             <b>{FELL_HEAL} HP</b>.
           </p>
         )}
-        {lh.won && (
+        {scoreDone && lh.won && (
           <p className="winner-line">
             <b>{lh.dmgDealt}</b> damage fells {lh.targetName}, the last of them. The gate opens.
           </p>
@@ -622,10 +770,82 @@ function BattleReport({
             You take <b>{lh.dmgTaken}</b> and fall. Your last grace gutters out.
           </p>
         )}
-        <button className="btn btn-primary" onClick={() => onContinue(report)}>
-          {lh.won ? 'Onward' : dead ? 'The reckoning' : 'Fight on'}
-        </button>
+        {scoreDone && (
+          <button className="btn btn-primary" onClick={() => onContinue(report)}>
+            {lh.won ? 'Onward' : dead ? 'The reckoning' : 'Fight on'}
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+const SCORE_STEP_MS = 480;
+
+/**
+ * The strike counted out Balatro-style: base chips land, each trick you won
+ * ticks the chips up (showing the card that won it), the mult stamps in, and
+ * the product slams. Click to skip to the slam.
+ */
+function ScoreOff({
+  score,
+  wins,
+  done,
+  onDone
+}: {
+  score: StrikeScore;
+  wins: TrickWin[];
+  done: boolean;
+  onDone: () => void;
+}) {
+  // steps: 1..wins.length reveal wins, +1 stamps the mult, +2 slams the total
+  const lastStep = wins.length + 2;
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (done) return;
+    if (step >= lastStep) {
+      onDone();
+      return;
+    }
+    const t = window.setTimeout(() => setStep((s) => s + 1), SCORE_STEP_MS);
+    return () => clearTimeout(t);
+  }, [step, done, lastStep, onDone]);
+
+  const shownWins = done ? wins.length : Math.min(step, wins.length);
+  const multIn = done || step > wins.length;
+  const totalIn = done || step >= lastStep;
+  const chips = score.baseChips + wins.slice(0, shownWins).reduce((s, w) => s + w.rank, 0);
+
+  return (
+    <div className="score-off" onClick={() => !done && onDone()}>
+      <div className="score-formula">
+        <span className="score-chips" key={`c${shownWins}`}>
+          {chips}
+        </span>
+        <span className="score-x">×</span>
+        <span className={`score-mult${multIn ? ' score-in' : ' score-dim'}`}>
+          {multIn ? score.mult : '?'}
+        </span>
+        <span className="score-x">=</span>
+        <span className={`score-total${totalIn ? ' score-in score-slam' : ' score-dim'}`}>
+          {totalIn ? score.total : '?'}
+        </span>
+      </div>
+      {wins.length > 0 && (
+        <div className="score-wins">
+          {wins.slice(0, shownWins).map((w, i) => (
+            <span
+              key={i}
+              className={`score-win${w.suit === 'H' || w.suit === 'D' ? ' score-win-red' : ''}${
+                w.trump ? ' score-win-trump' : ''
+              }`}
+            >
+              {rankLabel(w.rank)}
+              {SUIT_GLYPHS[w.suit]}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

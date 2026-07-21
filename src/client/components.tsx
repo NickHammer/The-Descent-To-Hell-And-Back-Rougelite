@@ -19,16 +19,23 @@ export function CardView({
   size = 'md',
   disabled = false,
   highlight = false,
+  /** native hover text — callers that know what `card.enchant` means (rogue/scoring.ts) supply this */
+  title,
   onClick,
   onPointerDown,
+  onMouseEnter,
+  onMouseLeave,
   style
 }: {
   card: Card;
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   highlight?: boolean;
+  title?: string;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
+  onMouseEnter?: (e: React.MouseEvent) => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
   style?: React.CSSProperties;
 }) {
   const red = card.suit === 'H' || card.suit === 'D';
@@ -41,7 +48,10 @@ export function CardView({
     red ? 'card-red' : 'card-black',
     disabled ? 'card-disabled' : '',
     highlight ? 'card-highlight' : '',
-    onClick && !disabled ? 'card-clickable' : ''
+    onClick && !disabled ? 'card-clickable' : '',
+    // Opaque here by design: this component doesn't know what an enchant
+    // means, just that a distinct class should carry a distinct look.
+    card.enchant ? `card-enchant-${card.enchant}` : ''
   ]
     .filter(Boolean)
     .join(' ');
@@ -52,8 +62,11 @@ export function CardView({
   return (
     <button
       className={classes}
+      title={title}
       onClick={disabled ? undefined : onClick}
       onPointerDown={onPointerDown}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={style}
     >
       <span className="card-corner">

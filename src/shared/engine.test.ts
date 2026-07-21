@@ -161,6 +161,54 @@ describe('trick resolution', () => {
   });
 });
 
+describe('trick log', () => {
+  it('records every collected trick with its winner and the trump suit in force', () => {
+    const rng = makeRng(21);
+    const state = makeGame(2);
+    state.handIndex = 2; // next hand: 4 cards
+    state.phase = 'handEnd';
+    startNextHand(state, rng);
+    expect(state.trickLog).toEqual([]);
+    placeBid(state, state.turn, 1);
+    placeBid(state, state.turn, 1);
+    const trump = state.trumpCard!.suit;
+    let collected = 0;
+    while (collected < 4) {
+      if (state.trickWinner !== null) {
+        const trick = state.trick.slice();
+        collectTrick(state);
+        collected += 1;
+        expect(state.trickLog.length).toBe(collected);
+        const entry = state.trickLog[collected - 1];
+        expect(entry.cards).toEqual(trick);
+        expect(entry.winner).toBe(state.lastTrick!.winner);
+        expect(entry.trumpSuit).toBe(trump);
+      } else {
+        playCard(state, state.turn, chooseCard(state, state.turn).id);
+      }
+    }
+    expect(state.trickLog.length).toBe(4);
+    // winners in the log agree with the trick tally
+    const tally = [0, 0];
+    for (const t of state.trickLog) tally[t.winner] += 1;
+    expect(tally).toEqual(state.tricksTaken);
+  });
+
+  it('resets when the next hand is dealt', () => {
+    const rng = makeRng(22);
+    const state = makeGame(2);
+    startNextHand(state, rng);
+    placeBid(state, state.turn, 0);
+    placeBid(state, state.turn, 0);
+    playCard(state, state.turn, state.hands[state.turn][0].id);
+    playCard(state, state.turn, state.hands[state.turn][0].id);
+    collectTrick(state);
+    expect(state.trickLog.length).toBe(1);
+    startNextHand(state, rng);
+    expect(state.trickLog).toEqual([]);
+  });
+});
+
 describe('scoring', () => {
   it('awards bid+5 for an exact bid and -(bid+5) for a miss', () => {
     const rng = makeRng(9);

@@ -19,17 +19,19 @@ Circle 9  · 9 cards                     Sphere 9 · 1 card   → Paradise (win)
 - **19 stops**, each a **battle**: hand sizes climb 1→10 on the way down, then shrink
   10→1 on the way back up, and hands of Oh Hell repeat at each gate until one side falls.
 - **Every demon at the table has its own HP** — a lead demon (the quirk owner) carries
-  half the table's total, its named minions split the rest. Make your bid exactly and you
-  strike for **5 + bid** damage at **a demon of your choosing**; a demon at 0 HP leaves
-  the table (a bite of its soul restores 2 HP), and killing the lead lifts its quirk.
-  The gate opens when every demon is down.
-- **Miss and the table strikes back** for **2 + living demons + bid** — a thinner table
-  hits softer, bolder bids cut deeper both ways.
+  half the table's total, its named minions split the rest. Make your bid exactly and
+  the hand is **scored**: `(10 + the rank of each card you won a trick with) × (1 +
+  bid/2)` damage at **a demon of your choosing** — win big tricks on bold bids and the
+  number explodes. A demon at 0 HP leaves the table (a bite of its soul restores 2 HP),
+  and killing the lead lifts its quirk. The gate opens when every demon is down.
+- **Miss and the table strikes back** — scored the same way in reverse: `(2 + tricks
+  the demons won) × (1 + 0.2 × how badly you missed by)` damage to you. A close call
+  stings less than a wild overbid.
 - **You have 14 HP**, refilled at each new gate. At 0 HP, **grace** catches you: lose
   1 grace, return at full health, and the demons keep their wounds. Grace starts at 3;
   at 0 the run ends.
-- **Souls** are the run currency: 3 + your bid per made bid (bold bids pay more), plus a
-  bounty for felling the boss. A **shop** opens every third stop — spend souls on relics
+- **Souls** are the run currency: 3 + a tenth of the damage you dealt per made bid
+  (a harder blow shakes more loose), plus a bounty for felling the boss. A **shop** opens every third stop — spend souls on relics
   or restore 1 grace.
 - **The gift at the gate**: every run opens with a choice of 1 of 3 relics, and an
   information relic is always among them.
@@ -63,7 +65,7 @@ legendary **orange**.
 | Loaded Die | common | See the trump while bidding on deep hands (4+ cards). |
 | Grave Ledger | common | Running count of trumps played this hand. |
 | Second Soul | uncommon | +1 max grace, and restores 1 grace when taken. |
-| Ember Brand | uncommon | Made bids strike for +3 damage. |
+| Ember Brand | uncommon | Made bids strike with +1 mult. |
 | Ashen Shield | uncommon | Missed bids deal 2 less damage to you (never below 1). |
 | Trump Vision | uncommon | Demons' trumps smolder through the backs of their cards. |
 | 🥬 The Devil's Lettuce | rare | Smoke curls from the backs of demons' high cards (Q, K, A). |

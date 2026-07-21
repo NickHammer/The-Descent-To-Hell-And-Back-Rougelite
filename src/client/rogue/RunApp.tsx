@@ -4,13 +4,18 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { GATE_ART } from './art.js';
+import { buildDeck } from '../../shared/engine.js';
+import { ALL_DECK_IDS, DeckId, DECKS } from '../../rogue/decks.js';
 import { DEMONS, rosterFor } from '../../rogue/demons.js';
-import { RELICS, RelicId } from '../../rogue/relics.js';
+import { CRACKED_HALO_CHARGES_PER_GATE, RELICS, RelicId } from '../../rogue/relics.js';
 import {
   BOTTOM_INDEX,
   buildTrack,
   buyHeal,
   buyRelic,
+  cleanseCard,
+  CLEANSE_COST,
+  consumeRelic,
   demonMaxHpsFor,
   devClearGate,
   HEAL_COST,
@@ -21,11 +26,20 @@ import {
   RunState,
   STOP_COUNT,
   takeGift,
-  useFerrymansCoin
+  useFerrymansCoin,
+  usePactEcho,
+  usePactRuin,
+  usePactSeal
 } from '../../rogue/run.js';
+import { ENCHANTMENTS, EnchantId, TrickWin } from '../../rogue/scoring.js';
+import { Card } from '../../shared/types.js';
 import { play as playSound } from '../sounds.js';
+import { DeckPickerModal } from './DeckPickerModal.js';
 import { HandView } from './HandView.js';
 import { RelicTray } from './RelicTray.js';
+
+/** Enchants a Shop Pact can seal in (Cursed is a corruption effect, never chosen). */
+const SEALABLE_ENCHANTS: EnchantId[] = ['gilded', 'royal', 'blazing', 'marked'];
 
 const SAVE_KEY = 'thab_rogue_run';
 
@@ -42,6 +56,11 @@ function loadRun(): RunState | null {
       Array.isArray(run.demonHps);
     if (!valid) return null;
     run.lastHand ??= null;
+    // Backfill fields from saves made before the persistent deck shipped.
+    run.deck ??= buildDeck();
+    run.crackedHaloCharges ??= CRACKED_HALO_CHARGES_PER_GATE;
+    run.madeStreak ??= 0;
+    run.deckId ??= 'standard';
     return run;
   } catch {
     return null;
@@ -67,7 +86,7 @@ export function RunApp() {
 
   let view: JSX.Element;
   if (!run || !track) {
-    view = <StartView onStart={() => setRun(newRun())} />;
+    view = <StartView onStart={(deckId) => setRun(newRun(undefined, deckId))} />;
   } else if (inHand && run.phase === 'map') {
     view = (
       <LazyHand
@@ -87,6 +106,7 @@ export function RunApp() {
             setRun(null);
           }
         }}
+        onConsumeRelic={(id) => setRun(consumeRelic(run, id))}
         devWin={() => devClearGate(run, track)}
       />
     );
@@ -102,6 +122,7 @@ export function RunApp() {
         run={run}
         onPlay={() => setInHand(true)}
         onFerryman={() => update(useFerrymansCoin(run, track))}
+        onChange={update}
         onAbandon={() => setRun(null)}
       />
     );
@@ -162,13 +183,21 @@ function LazyHand({
   resolve,
   onContinue,
   onQuit,
+  onConsumeRelic,
   devWin
 }: {
   run: RunState;
   trackStop: ReturnType<typeof buildTrack>[number];
-  resolve: (outcome: { bid: number; taken: number; target?: number }) => RunState;
+  resolve: (outcome: {
+    bid: number;
+    taken: number;
+    target?: number;
+    wins?: TrickWin[];
+    demonWins?: TrickWin[];
+  }) => RunState;
   onContinue: (resolved: RunState) => void;
   onQuit: () => void;
+  onConsumeRelic: (id: RelicId) => void;
   devWin: () => RunState;
 }) {
   return (
@@ -179,20 +208,23 @@ function LazyHand({
       hp={run.hp}
       maxHp={run.maxHp}
       demonHps={run.demonHps}
-      demonMaxHps={demonMaxHpsFor(trackStop)}
+      demonMaxHps={demonMaxHpsFor(trackStop, run.relics)}
       grace={run.grace}
       souls={run.souls}
       playerName={localStorage.getItem('thab_name') ?? 'You'}
       seed={(run.seed ^ Math.imul(run.attempts + 1, 2654435761)) >>> 0}
+      deck={run.deck}
       resolve={resolve}
       onContinue={onContinue}
       onQuit={onQuit}
+      onConsumeRelic={onConsumeRelic}
       devWin={devWin}
     />
   );
 }
 
-function StartView({ onStart }: { onStart: () => void }) {
+function StartView({ onStart }: { onStart: (deckId: DeckId) => void }) {
+  const [deckId, setDeckId] = useState<DeckId>('standard');
   return (
     <div className="home rogue-start">
       <h1 className="title">The Descent</h1>
@@ -205,6 +237,28 @@ function StartView({ onStart }: { onStart: () => void }) {
         <figcaption>Gustave Doré · Inferno I</figcaption>
       </figure>
       <div className="panel">
+        <h2>Choose your deck</h2>
+        <div className="rogue-ruleslist" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {ALL_DECK_IDS.map((id) => {
+            const d = DECKS[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`deck-option ${deckId === id ? 'deck-option-selected' : ''}`}
+                onClick={() => setDeckId(id)}
+              >
+                <span>
+                  <b>{d.name}</b>
+                  <div className="rogue-flavor">{d.hook}</div>
+                </span>
+                {deckId === id && <span>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="panel">
         <h2>The rules of the pit</h2>
         <ul className="rogue-ruleslist">
           <li>
@@ -212,13 +266,14 @@ function StartView({ onStart }: { onStart: () => void }) {
             repeat — 1 card at Circle 1, 10 at The Bottom — until one side falls.
           </li>
           <li>
-            <b>Make your bid exactly</b> and you strike <b>a demon of your choosing</b> for{' '}
-            <b>5 + bid</b> damage (and earn souls). Slain demons leave the table — a bite of
-            their soul heals you — and the lead's quirk dies with it.
+            <b>Make your bid exactly</b> and you strike <b>a demon of your choosing</b> — chips
+            from the tricks you won × mult from how bold your bid was (and earn souls). Slain
+            demons leave the table — a bite of their soul heals you — and the lead's quirk dies
+            with it.
           </li>
           <li>
-            <b>Miss</b> and the table strikes back, harder the more demons still stand and the
-            bolder your bid.
+            <b>Miss</b> and the table strikes back the same way — chips from the tricks *they*
+            won × mult from how badly you missed by.
           </li>
           <li>
             At 0 HP, <b>grace</b> catches you: −1 grace, back to full health, and the demon keeps
@@ -231,8 +286,12 @@ function StartView({ onStart }: { onStart: () => void }) {
           <li>Souls buy relics and grace at shops every third gate.</li>
           <li>Each demon warps one rule — it's shown before you play.</li>
           <li>You begin with a <b>gift</b>: one of three relics, yours to choose.</li>
+          <li>
+            Your deck is real and persistent — enchantments (and the odd demon's curse) ride the
+            cards for the whole run.
+          </li>
         </ul>
-        <button className="btn btn-primary" onClick={onStart}>
+        <button className="btn btn-primary" onClick={() => onStart(deckId)}>
           🔥 Begin the descent
         </button>
       </div>
@@ -244,18 +303,20 @@ function MapView({
   run,
   onPlay,
   onFerryman,
+  onChange,
   onAbandon
 }: {
   run: RunState;
   onPlay: () => void;
   onFerryman: () => void;
+  onChange: (r: RunState) => void;
   onAbandon: () => void;
 }) {
   const track = buildTrack(run.seed);
   const stop = track[run.stopIndex];
   const demon = DEMONS[stop.demonId];
   const roster = rosterFor(stop);
-  const demonMaxHps = demonMaxHpsFor(stop);
+  const demonMaxHps = demonMaxHpsFor(stop, run.relics);
   const wounded = run.demonHps.some((hp, i) => hp < demonMaxHps[i]);
   const leadSlain = run.demonHps[0] === 0;
   const canFerry = run.relics.includes('ferrymansCoin') && stop.region !== 'bottom';
@@ -309,6 +370,8 @@ function MapView({
         {canFerry && (
           <button className="btn" onClick={onFerryman}>
             🪙 Use the Ferryman's Coin — skip {stop.label}
+            {run.relics.filter((r) => r === 'ferrymansCoin').length > 1 &&
+              ` (×${run.relics.filter((r) => r === 'ferrymansCoin').length} held)`}
           </button>
         )}
       </div>
@@ -336,11 +399,121 @@ function MapView({
         </ol>
       </div>
 
+      <DeckPanel run={run} onChange={onChange} />
       <RelicTray relics={run.relics} />
 
       <button className="btn rogue-abandon" onClick={onAbandon}>
         Abandon run
       </button>
+    </div>
+  );
+}
+
+/**
+ * Browse the persistent deck and spend held Shop Pacts between fights: seal
+ * an enchant into a chosen card, burn one out, or duplicate one. Cleansing a
+ * curse is a souls-cost shop action instead — see `ShopView`.
+ */
+function DeckPanel({ run, onChange }: { run: RunState; onChange: (r: RunState) => void }) {
+  const [mode, setMode] = useState<'browse' | 'pactSeal' | 'pactRuin' | 'pactEcho' | null>(null);
+  const [sealEnchant, setSealEnchant] = useState<EnchantId | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const close = () => {
+    setMode(null);
+    setSealEnchant(null);
+    setError(null);
+  };
+
+  const tryApply = (fn: () => RunState) => {
+    try {
+      onChange(fn());
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const countOf = (id: RelicId) => run.relics.filter((r) => r === id).length;
+
+  return (
+    <div className="panel">
+      <div className="deck-pact-bar">
+        <button className="btn" onClick={() => setMode('browse')}>
+          🃏 View deck ({run.deck.length})
+        </button>
+        {countOf('pactSeal') > 0 && (
+          <button className="btn" onClick={() => setMode('pactSeal')}>
+            Use Pact of Sealing{countOf('pactSeal') > 1 && ` (×${countOf('pactSeal')})`}
+          </button>
+        )}
+        {countOf('pactRuin') > 0 && (
+          <button className="btn" onClick={() => setMode('pactRuin')}>
+            Use Pact of Ruin{countOf('pactRuin') > 1 && ` (×${countOf('pactRuin')})`}
+          </button>
+        )}
+        {countOf('pactEcho') > 0 && (
+          <button className="btn" onClick={() => setMode('pactEcho')}>
+            Use Pact of Echoes{countOf('pactEcho') > 1 && ` (×${countOf('pactEcho')})`}
+          </button>
+        )}
+      </div>
+
+      {mode === 'pactSeal' && !sealEnchant && (
+        <div className="modal-backdrop" onClick={close}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Pact of Sealing — choose a mark</h2>
+            {SEALABLE_ENCHANTS.map((id) => (
+              <button
+                key={id}
+                className="deck-option"
+                onClick={() => setSealEnchant(id)}
+              >
+                <span>
+                  <b>{ENCHANTMENTS[id].name}</b>
+                  <div className="rogue-flavor">{ENCHANTMENTS[id].effect}</div>
+                </span>
+              </button>
+            ))}
+            <button className="btn" onClick={close}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'browse' && <DeckPickerModal deck={run.deck} title="🃏 Your Deck" onClose={close} />}
+
+      {mode === 'pactSeal' && sealEnchant && (
+        <DeckPickerModal
+          deck={run.deck}
+          title={`Pact of Sealing — choose a card for ${ENCHANTMENTS[sealEnchant].name}`}
+          hint={error ?? 'Only unenchanted cards can be sealed.'}
+          filter={(c: Card) => !c.enchant}
+          onPick={(cardId) => tryApply(() => usePactSeal(run, cardId, sealEnchant))}
+          onClose={close}
+        />
+      )}
+
+      {mode === 'pactRuin' && (
+        <DeckPickerModal
+          deck={run.deck}
+          title="Pact of Ruin — choose a card to burn out of the deck"
+          hint={error ?? undefined}
+          onPick={(cardId) => tryApply(() => usePactRuin(run, cardId))}
+          onClose={close}
+        />
+      )}
+
+      {mode === 'pactEcho' && (
+        <DeckPickerModal
+          deck={run.deck}
+          title="Pact of Echoes — choose a card to duplicate"
+          hint={error ?? undefined}
+          onPick={(cardId) => tryApply(() => usePactEcho(run, cardId))}
+          onClose={close}
+        />
+      )}
     </div>
   );
 }
@@ -384,6 +557,10 @@ function GiftView({
 }
 
 function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) => void }) {
+  const [cleansing, setCleansing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cursedCount = run.deck.filter((c) => c.enchant === 'cursed').length;
+
   return (
     <div className="home rogue-shop">
       <h1 className="title">🕯 The Shop Between</h1>
@@ -423,10 +600,45 @@ function ShopView({ run, onChange }: { run: RunState; onChange: (r: RunState) =>
             ✦ {HEAL_COST}
           </button>
         </div>
+        {cursedCount > 0 && (
+          <div className="rogue-offer">
+            <div>
+              <b>Cleanse a cursed card</b>
+              <div className="rogue-flavor">
+                {cursedCount} card{cursedCount === 1 ? '' : 's'} carry a demon's scar. Lift one.
+              </div>
+            </div>
+            <button className="btn" disabled={run.souls < CLEANSE_COST} onClick={() => setCleansing(true)}>
+              ✦ {CLEANSE_COST}
+            </button>
+          </div>
+        )}
         <button className="btn btn-primary" onClick={() => onChange(leaveShop(run))}>
           Back to the road
         </button>
       </div>
+
+      {cleansing && (
+        <DeckPickerModal
+          deck={run.deck}
+          title="Cleanse a cursed card"
+          hint={error ?? `${CLEANSE_COST} souls lifts the curse.`}
+          filter={(c: Card) => c.enchant === 'cursed'}
+          onPick={(cardId) => {
+            try {
+              onChange(cleanseCard(run, cardId));
+              setCleansing(false);
+              setError(null);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            }
+          }}
+          onClose={() => {
+            setCleansing(false);
+            setError(null);
+          }}
+        />
+      )}
 
       <RelicTray relics={run.relics} />
     </div>

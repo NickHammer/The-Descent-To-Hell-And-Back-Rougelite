@@ -1,7 +1,9 @@
 # Decks — design brainstorm
 
 *Balatro-style starting decks for The Descent: pick a deck at the gate, and the whole
-run bends around it. Nothing here is implemented yet — this doc is the thinking space.*
+run bends around it. Nothing here is implemented yet — this doc is the thinking space.
+The scoring engine decks will plug into (chips × mult, and the roadmap that ranks
+decks against the other systems) lives in [`docs/SCORING.md`](docs/SCORING.md).*
 
 ## What a deck can legally touch
 

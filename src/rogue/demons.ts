@@ -1,6 +1,6 @@
 /** The demon roster. Each demon warps one rule while seated (see quirk notes). */
 
-export type DemonId = 'imp' | 'liar' | 'hoarder' | 'usurer' | 'adversary';
+export type DemonId = 'imp' | 'liar' | 'hoarder' | 'usurer' | 'adversary' | 'warden';
 
 /** Personality nudges applied to the shared bot AI for every seat at this table. */
 export interface BotStyle {
@@ -73,6 +73,16 @@ export const DEMONS: Record<DemonId, DemonDef> = {
     quirk: 'The trump suit shifts every 3 tricks.',
     style: { bidBias: 1, leadTrumps: true },
     minStop: 9
+  },
+  /** The last gate: one card, no gimmick — just whatever the run built you into. */
+  warden: {
+    id: 'warden',
+    name: 'The Warden',
+    flavor: 'Not a jailer. A witness. It only ever asks whether you were ready.',
+    epithet: 'asks if you were ready',
+    quirk: 'No quirk, no hidden hand — one card, and the whole run behind it.',
+    style: {},
+    minStop: 18
   }
 };
 
@@ -104,6 +114,10 @@ const MINIONS: Record<DemonId, { name: string; epithet: string }[]> = {
   adversary: [
     { name: 'Left Hand', epithet: 'deals what the house wants' },
     { name: 'Right Hand', epithet: 'takes what the house is owed' }
+  ],
+  warden: [
+    { name: 'The Witness', epithet: 'counts what you became' },
+    { name: 'The Scale', epithet: 'weighs what you built' }
   ]
 };
 

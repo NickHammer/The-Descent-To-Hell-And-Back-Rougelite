@@ -5,6 +5,8 @@ export interface Card {
   suit: Suit;
   rank: number;
   id: string;
+  /** roguelite card enchantment id, if any (opaque here — see rogue/scoring.ts) */
+  enchant?: string;
 }
 
 export type Phase = 'lobby' | 'bidding' | 'playing' | 'handEnd' | 'gameEnd';
@@ -24,6 +26,14 @@ export interface PlayerInfo {
 export interface TrickCard {
   seat: number;
   card: Card;
+}
+
+/** A collected trick, kept for the whole hand (lastTrick only holds the newest). */
+export interface TrickRecord {
+  cards: TrickCard[];
+  winner: number;
+  /** trump suit in force when the trick was collected (quirks can shift it mid-hand) */
+  trumpSuit: Suit;
 }
 
 export interface HandResult {
@@ -54,6 +64,8 @@ export interface GameState {
   /** set when the current trick is complete and awaiting collection */
   trickWinner: number | null;
   lastTrick: { cards: TrickCard[]; winner: number } | null;
+  /** every trick collected this hand, in order */
+  trickLog: TrickRecord[];
   history: HandResult[];
 }
 

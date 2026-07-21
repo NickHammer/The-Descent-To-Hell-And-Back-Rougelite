@@ -51,6 +51,14 @@
   vertical-align: middle;
 }
 
+/* how many copies of a stacked consumable (Trump Anchor, a Pact, the Ferryman's Coin) you hold */
+.relic-count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-left: 4px;
+}
+
 html {
   /* keep the layout width stable when banners change the page height */
   scrollbar-gutter: stable;
@@ -228,12 +236,41 @@ body {
 }
 
 .player-badge {
+  position: relative;
   flex: 1 1 140px;
   background: var(--panel);
   border: 2px solid transparent;
   border-radius: 10px;
   padding: 8px 12px;
   min-width: 130px;
+}
+
+.demon-card.targetable {
+  cursor: pointer;
+}
+
+.demon-card.targetable:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.target-marked {
+  border-color: #e2503f;
+}
+
+.target-mark {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  background: #e2503f;
+  color: #2b0e0a;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  box-shadow: 0 0 0 2px var(--panel), 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
 .player-turn {
@@ -275,6 +312,15 @@ body {
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 800;
+}
+
+.next-chip {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-left: 6px;
+  opacity: 0.85;
 }
 
 .player-line {
@@ -397,6 +443,73 @@ body {
 
 .card-black {
   color: var(--card-black);
+}
+
+/* Enchanted cards carry their mark everywhere they render — hand, trick, deck browser. */
+.card-enchant-gilded {
+  border-color: #f2cf6e;
+  box-shadow: 0 0 8px 1px rgba(242, 207, 110, 0.65), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.card-enchant-royal {
+  border-color: #d9a6ff;
+  box-shadow: 0 0 8px 1px rgba(217, 166, 255, 0.65), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.card-enchant-blazing {
+  border-color: #ff9a5c;
+  box-shadow: 0 0 8px 1px rgba(255, 154, 92, 0.65), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.card-enchant-marked {
+  border-color: #6ed4ff;
+  box-shadow: 0 0 8px 1px rgba(110, 212, 255, 0.65), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.card-enchant-cursed {
+  border-color: #ff6e6e;
+  box-shadow: 0 0 8px 1px rgba(255, 110, 110, 0.55), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+/*
+ * Card enchant hover tooltip (HandView): position: fixed and placed via JS
+ * from getBoundingClientRect, not a CSS :hover reveal — the hand fan clips
+ * vertical overflow (see .hand-fan), which would cut off a tooltip anchored
+ * inside it.
+ */
+.card-hover-tip {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 10px));
+  background: #0a0a0a;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 240px;
+  width: max-content;
+  text-align: center;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  animation: tip-in 0.1s ease-out;
+}
+
+.card-hover-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #0a0a0a;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 4px));
+  }
 }
 
 .card-sm {
@@ -708,9 +821,200 @@ body {
   margin: 0;
 }
 
+.deck-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #2c3a33;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: none;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
+}
+
+.deck-option-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.deck-picker {
+  max-width: 760px;
+  align-items: stretch;
+  text-align: left;
+}
+
+.deck-pact-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deck-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deck-suit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.deck-suit-label {
+  min-width: 80px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding-top: 8px;
+}
+
+.deck-suit-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.deck-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.deck-card-slot .card-clickable:hover {
+  outline: 2px solid var(--accent);
+}
+
+.enchant-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.enchant-gilded {
+  background: #4a3a12;
+  color: #f2cf6e;
+}
+
+.enchant-royal {
+  background: #3a2246;
+  color: #d9a6ff;
+}
+
+.enchant-blazing {
+  background: #4a2412;
+  color: #ff9a5c;
+}
+
+.enchant-marked {
+  background: #123a4a;
+  color: #6ed4ff;
+}
+
+.enchant-cursed {
+  background: #4a1212;
+  color: #ff6e6e;
+}
+
 .winner-line {
   margin: 0;
   font-size: 1.1rem;
+}
+
+/* ---------- strike score-off (chips × mult) ---------- */
+
+.score-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.score-formula {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-chips {
+  color: #6fb7ff;
+  animation: score-tick 0.25s ease-out;
+}
+
+.score-x {
+  font-size: 1.1rem;
+  opacity: 0.6;
+}
+
+.score-mult {
+  color: #ff6f5e;
+}
+
+.score-total {
+  color: var(--accent);
+}
+
+.score-dim {
+  opacity: 0.25;
+}
+
+.score-in {
+  animation: score-tick 0.25s ease-out;
+}
+
+.score-slam {
+  animation: score-slam 0.4s cubic-bezier(0.2, 2.2, 0.4, 1) backwards;
+}
+
+@keyframes score-tick {
+  from {
+    transform: scale(1.45);
+  }
+}
+
+@keyframes score-slam {
+  from {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.score-wins {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 1.4em;
+}
+
+.score-win {
+  border: 1px solid #3a4f44;
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  animation: pop-in 0.2s ease-out backwards;
+}
+
+.score-win-red {
+  color: #ff8a7a;
+}
+
+.score-win-trump {
+  border-color: var(--accent);
+  animation: pop-in 0.2s ease-out backwards, ember-pulse 1.6s ease-in-out infinite alternate;
 }
 
 /* ---------- roguelite (The Descent) ---------- */

@@ -17,6 +17,7 @@ import {
 import { Card, GameState, PlayerInfo, Suit } from '../../shared/types.js';
 import { DEMONS, DemonSeat, rosterFor } from '../../rogue/demons.js';
 import { StopDef } from '../../rogue/run.js';
+import { TrickWin } from '../../rogue/scoring.js';
 import { mulberry32, pick } from '../../rogue/rng.js';
 import { play as playSound } from '../sounds.js';
 
@@ -41,19 +42,24 @@ export interface LocalHand {
   trumpShifted: boolean;
   /** the most recent bid placed, so the table can announce it */
   lastBid: { seat: number; bid: number } | null;
-  result: { bid: number; taken: number } | null;
+  result: { bid: number; taken: number; wins: TrickWin[]; demonWins: TrickWin[] } | null;
   bid: (b: number) => void;
   play: (cardId: string) => void;
   /** collapse the timers for the rest of the hand (used once the bid is dead) */
   hurry: () => void;
   hurrying: boolean;
+  /** Trump Anchor: lock trump to a suit for the rest of the hand (overrides any shift). */
+  lockTrump: (suit: Suit) => void;
+  /** whether trump has been locked this hand (Trump Anchor already spent here) */
+  trumpLocked: boolean;
 }
 
 export function useLocalHand(
   stop: StopDef,
   demonHps: number[],
   playerName: string,
-  seed: number
+  seed: number,
+  deck: Card[]
 ): LocalHand {
   const roster = rosterFor(stop);
   const aliveRoster = demonHps
@@ -65,6 +71,7 @@ export function useLocalHand(
   const rng = useRef<() => number>(() => Math.random());
   const trumps = useRef(0);
   const shifted = useRef(false);
+  const trumpLockedRef = useRef(false);
   const lastBid = useRef<{ seat: number; bid: number } | null>(null);
   const fast = useRef(false);
   const turnAnnounced = useRef(false);
@@ -83,7 +90,7 @@ export function useLocalHand(
     // Randomize who deals so the player isn't always last to bid
     // (startNextHand rotates once, which keeps the draw uniform).
     state.dealer = Math.floor(rng.current() * seatCount);
-    startNextHand(state, rng.current);
+    startNextHand(state, rng.current, deck);
     game.current = state;
     playSound('deal');
   }
@@ -108,7 +115,8 @@ export function useLocalHand(
           leadAliveNow &&
           state.phase === 'playing' &&
           collected % 3 === 0 &&
-          state.trumpCard
+          state.trumpCard &&
+          !trumpLockedRef.current
         ) {
           const others = SUITS.filter((s) => s !== state.trumpCard!.suit);
           const suit = pick(rng.current, others);
@@ -175,6 +183,13 @@ export function useLocalHand(
     bump();
   };
 
+  const lockTrump = (suit: Suit) => {
+    if (!state.trumpCard || trumpLockedRef.current || handOver) return;
+    state.trumpCard = { ...state.trumpCard, suit, id: `anchor-${suit}` };
+    trumpLockedRef.current = true;
+    bump();
+  };
+
   return {
     state,
     seatRoster: aliveRoster,
@@ -186,15 +201,41 @@ export function useLocalHand(
     trumpsPlayed: trumps.current,
     trumpShifted: shifted.current,
     lastBid: lastBid.current,
-    result: handOver ? { bid: state.history[0].bids[0], taken: state.history[0].taken[0] } : null,
+    result: handOver
+      ? {
+          bid: state.history[0].bids[0],
+          taken: state.history[0].taken[0],
+          wins: winsFor(state, (seat) => seat === 0),
+          demonWins: winsFor(state, (seat) => seat !== 0)
+        }
+      : null,
     bid,
     play,
     hurry: () => {
       fast.current = true;
       bump();
     },
-    hurrying: fast.current
+    hurrying: fast.current,
+    lockTrump,
+    trumpLocked: trumpLockedRef.current
   };
+}
+
+/**
+ * The tricks won by seats matching `seat` (a predicate so the same helper
+ * covers the player's own wins and the demons' collective wins), as scoring
+ * material: the winner's own card is the card that won the trick, trump is
+ * judged against the suit in force when that trick was collected (the
+ * Adversary shifts it mid-hand, Trump Anchor can lock it), and any
+ * enchantment on the winning card rides along (see rogue/scoring.ts).
+ */
+function winsFor(state: GameState, matches: (seat: number) => boolean): TrickWin[] {
+  return state.trickLog
+    .filter((t) => matches(t.winner))
+    .map((t) => {
+      const card = t.cards.find((tc) => tc.seat === t.winner)!.card;
+      return { rank: card.rank, suit: card.suit, trump: card.suit === t.trumpSuit, enchant: card.enchant };
+    });
 }
 
 const BLACKS: Suit[] = ['S', 'C'];

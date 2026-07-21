@@ -56,12 +56,19 @@ export function newGame(config: GameConfig, players: PlayerInfo[]): GameState {
     trickLeader: -1,
     trickWinner: null,
     lastTrick: null,
+    trickLog: [],
     history: []
   };
 }
 
-/** Deal the next hand: advance the hand counter, rotate dealer, shuffle, deal, flip trump. */
-export function startNextHand(state: GameState, rng: Rng = Math.random): void {
+/**
+ * Deal the next hand: advance the hand counter, rotate dealer, shuffle, deal,
+ * flip trump. `deck` defaults to a fresh standard 52 but can be a persistent
+ * deck carried across hands (see `RunState.deck` in rogue/run.ts) — the same
+ * 52 cards, reshuffled every hand, letting per-card metadata (enchantments)
+ * ride along on whichever card ends up where.
+ */
+export function startNextHand(state: GameState, rng: Rng = Math.random, deck: Card[] = buildDeck()): void {
   if (state.phase !== 'lobby' && state.phase !== 'handEnd') {
     throw new Error(`Cannot start a hand during ${state.phase}`);
   }
@@ -72,18 +79,19 @@ export function startNextHand(state: GameState, rng: Rng = Math.random): void {
   state.handSize = sizes[state.handIndex];
   state.dealer = (state.dealer + 1) % n;
 
-  const deck = shuffle(buildDeck(), rng);
+  const shuffled = shuffle(deck, rng);
   state.hands = [];
   for (let seat = 0; seat < n; seat++) {
-    state.hands.push(deck.slice(seat * state.handSize, (seat + 1) * state.handSize));
+    state.hands.push(shuffled.slice(seat * state.handSize, (seat + 1) * state.handSize));
   }
-  state.trumpCard = deck[n * state.handSize];
+  state.trumpCard = shuffled[n * state.handSize];
 
   state.bids = state.players.map(() => null);
   state.tricksTaken = state.players.map(() => 0);
   state.trick = [];
   state.trickWinner = null;
   state.lastTrick = null;
+  state.trickLog = [];
   // House rule: the player left of the first bidder leads the first trick.
   state.trickLeader = (state.dealer + 2) % n;
   state.turn = (state.dealer + 1) % n; // player left of dealer bids first, dealer last
@@ -184,6 +192,7 @@ export function collectTrick(state: GameState): void {
   const winner = state.trickWinner;
   state.tricksTaken[winner] += 1;
   state.lastTrick = { cards: state.trick, winner };
+  state.trickLog.push({ cards: state.trick, winner, trumpSuit: state.trumpCard!.suit });
   state.trick = [];
   state.trickWinner = null;
 
