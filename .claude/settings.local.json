@@ -12,7 +12,9 @@
       "Bash(npx vitest *)",
       "Bash(python *)",
       "Bash(npm test *)",
-      "Bash(npx tsx *)"
+      "Bash(npx tsx *)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

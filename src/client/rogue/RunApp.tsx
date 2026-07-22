@@ -2,7 +2,7 @@
  * The Descent: single-player roguelite run. Entirely client-side — the run
  * lives in localStorage, hands are played by useLocalHand against ai.ts demons.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GATE_ART } from './art.js';
 import { buildDeck } from '../../shared/engine.js';
 import { ALL_DECK_IDS, DeckId, DECKS } from '../../rogue/decks.js';
@@ -82,6 +82,20 @@ export function RunApp() {
     if (run) localStorage.setItem(SAVE_KEY, JSON.stringify(run));
     else localStorage.removeItem(SAVE_KEY);
   }, [run]);
+
+  // Keep every gate plate decoded in memory for the whole session. The map
+  // swaps the <img> src on each stop and the battle view unmounts it entirely;
+  // refetching a fresh 0.3–1 MB JPG on each return is what made the art blink
+  // in and out. Holding the Image objects keeps them in cache and off the GC.
+  const preloaded = useRef<HTMLImageElement[]>([]);
+  useEffect(() => {
+    preloaded.current = [...GATE_ART.map((a) => a.src), '/art/gate.jpg'].map((src) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src;
+      return img;
+    });
+  }, []);
 
   const track = run ? buildTrack(run.seed) : null;
   const region = run && track ? track[Math.min(run.stopIndex, STOP_COUNT - 1)].region : 'hell';
@@ -232,15 +246,22 @@ function StartView({ onStart }: { onStart: (deckId: DeckId) => void }) {
   const [deckId, setDeckId] = useState<DeckId>('standard');
   return (
     <div className="home rogue-start">
-      <h1 className="title">The Descent</h1>
-      <p className="subtitle">
-        You died. Nine circles down, nine spheres up — one hand of cards at every gate.
-        Bid exactly what you take, or the pit takes you.
-      </p>
-      <figure className="home-art">
-        <img src="/art/gate.jpg" alt="Dante lost in the dark wood — engraving by Gustave Doré" />
-        <figcaption>Gustave Doré · Inferno I</figcaption>
-      </figure>
+      <div className="rogue-start-left">
+        <h1 className="title">The Descent</h1>
+        <p className="subtitle">
+          You died. Nine circles down, nine spheres up — one hand of cards at every gate.
+          Bid exactly what you take, or the pit takes you.
+        </p>
+        <figure className="home-art">
+          <img
+            src="/art/gate.jpg"
+            alt="Dante lost in the dark wood — engraving by Gustave Doré"
+            decoding="async"
+          />
+          <figcaption>Gustave Doré · Inferno I</figcaption>
+        </figure>
+      </div>
+      <div className="rogue-start-right">
       <div className="panel">
         <h2>Choose your deck</h2>
         <div className="rogue-ruleslist" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -299,6 +320,7 @@ function StartView({ onStart }: { onStart: (deckId: DeckId) => void }) {
           🔥 Begin the descent
         </button>
       </div>
+      </div>
     </div>
   );
 }
@@ -334,7 +356,11 @@ function MapView({
 
       <div className="panel map-stop">
         <figure className="gate-art">
-          <img src={GATE_ART[stop.index].src} alt={GATE_ART[stop.index].caption} />
+          <img
+            src={GATE_ART[stop.index].src}
+            alt={GATE_ART[stop.index].caption}
+            decoding="async"
+          />
           <figcaption>Gustave Doré · {GATE_ART[stop.index].caption}</figcaption>
         </figure>
         <h2>
